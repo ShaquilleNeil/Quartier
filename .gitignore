@@ -1,0 +1,6 @@
+.DS_Store
+*.xcuserdata
+xcuserdata/
+user285973/
+*.xcworkspace
+!default.xcworkspace
