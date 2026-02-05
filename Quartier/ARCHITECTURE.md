@@ -69,3 +69,8 @@ Located in `Quartier/Views/`
      * **New Tenant**: Show `TenantPreferencesView` (Profile Setup).
      * **Existing Tenant**: Show `TenantTabView`.
      * **Landlord**: Show `LandlordTabView`.
+
+
+##Work Done#####
+**Shaquille**: `Tenant Home, Apartment Cards, tenant profile - 3/2/2026`
+
