@@ -69,3 +69,5 @@ Located in `Quartier/Views/`
      * **New Tenant**: Show `TenantPreferencesView` (Profile Setup).
      * **Existing Tenant**: Show `TenantTabView`.
      * **Landlord**: Show `LandlordTabView`.
+
+Feb04 updated: landlordViews pages created with fake data; entity created for later use
