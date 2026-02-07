@@ -20,7 +20,7 @@ struct TenantHome: View {
                     LazyVGrid(columns: columns, spacing: 16) {
                         ForEach(1...10, id: \.self) { apartment in
                             ApartmentCard(
-                                imageName: "photo.artframe",
+                                imageName: "apartment1",
                                 isNew: true,
                                 rating: 4.8,
                                 beds: 2,
