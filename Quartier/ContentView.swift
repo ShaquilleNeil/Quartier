@@ -19,17 +19,18 @@ struct ContentView: View {
 
     var body: some View {
         
-        Picker("", selection: $showTenant) {
-            Text("Tenant").tag(true)
-            Text("LandLord").tag(false)
-        }.pickerStyle(.segmented)
-            .padding(.top, 60)
-        
-        if showTenant {
-            TenantTabView()
-        }else{
-            LandlordTabView()
+        NavigationStack{
+            NavigationLink(destination: LandlordTabView()) {
+                Text("landlord")
+            }
+            
+            
+            NavigationLink(destination: TenantTabView()) {
+                Text("tenant")
+            }
         }
+        
+      
        
     }
 
