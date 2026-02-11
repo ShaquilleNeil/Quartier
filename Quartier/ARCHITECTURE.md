@@ -70,4 +70,7 @@ Located in `Quartier/Views/`
      * **Existing Tenant**: Show `TenantTabView`.
      * **Landlord**: Show `LandlordTabView`.
 
-Feb04 updated: landlordViews pages created with fake data; entity created for later use
+
+##Work Done#####
+**Shaquille**: `Tenant Home, Apartment Cards, tenant profile - 3/2/2026`
+

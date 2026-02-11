@@ -4,3 +4,7 @@ xcuserdata/
 user285973/
 *.xcworkspace
 !default.xcworkspace
+
+# Xcode user-specific files
+xcuserdata/
+*.xcuserstate
