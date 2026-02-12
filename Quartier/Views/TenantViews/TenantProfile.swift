@@ -7,121 +7,269 @@
 
 import SwiftUI
 
+
 struct TenantProfile: View {
+    
     var body: some View {
-        VStack(){
-            //MARK: Shaq//////////////////
-            //MARK: Profile image/////////////////////
-            Image(systemName: "person.fill")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 100, height: 100)
-                .clipShape(Circle())
-                .background(
-                    Circle().fill(.gray)
-                )
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 24) {
+                    
+                    // MARK: Profile Header
+                    ProfileHeaderView()
+                    
+                    // MARK: Edit Button
+                    Button(action: {}) {
+                        Text("Edit Profile")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                    
+
+                    
+                    // MARK: Search Preferences
+                    SearchPreferencesCard()
+                    
+                    // MARK: Documents
+                    DocumentsSection()
+                    
+                    // MARK: Account Settings
+                    AccountSettingsSection()
+                }
+                .padding()
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("Profile")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+}
+
+//////////////////////////////////////////////////////////////////
+// MARK: Profile Header
+//////////////////////////////////////////////////////////////////
+
+private struct ProfileHeaderView: View {
+    var body: some View {
+        VStack(spacing: 12) {
             
-            
-            
-            Text("John Doe")
-                .font(Font.largeTitle.bold())
-                .foregroundColor(.black)
-            
-                Text("JohnDoe@example.com")
-            
-            
-            
-            Spacer()
-                .frame(height: 20)
-            
-            Button(action: {})
-            {
-                Text("Edit Profile")
-                    .font(Font.subheadline.bold())
-                    .foregroundStyle(.white)
-                    .background(
-                        RoundedRectangle(cornerRadius: 15)
-                            .frame(width: 300, height: 40)
+            ZStack(alignment: .bottomTrailing) {
+                
+                Circle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 120, height: 120)
+                    .overlay(
+                        Image(systemName: "person.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .padding(30)
+                            .foregroundColor(.gray)
                     )
-               
+                
+                Circle()
+                    .fill(Color.blue)
+                    .frame(width: 32, height: 32)
+                    .overlay(
+                        Image(systemName: "checkmark.seal.fill")
+                            .foregroundColor(.white)
+                            .font(.caption)
+                    )
             }
             
+            Text("Alex Rivers")
+                .font(.title2.bold())
             
-            Spacer()
-                .frame(height: 40)
+            Text("Verified Tenant • Member since 2022")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
             
+            HStack(spacing: 12) {
+                Badge(text: "ID Verified")
+                Badge(text: "Income Verified")
+            }
+        }
+    }
+}
+
+private struct Badge: View {
+    let text: String
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.blue)
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.blue)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.blue.opacity(0.1))
+        .clipShape(Capsule())
+    }
+}
+
+
+//////////////////////////////////////////////////////////////////
+// MARK: Search Preferences Card
+//////////////////////////////////////////////////////////////////
+
+private struct SearchPreferencesCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
             
+            Text("Current Search Preferences")
+                .font(.headline)
             
-            Text("My search Preferences")
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .font(Font.title3.bold())
-            
-            //MARK: place holder card for preferences from core data
             HStack {
-                VStack(alignment: .leading) {
-                    Text("2BR in Miami, FL")
-
-                    HStack {
-                        Text("$1,200/mo")
-                        Text("4.8/5")
-                        Text("No Pets")
-                    }
-                    .font(.caption)
-
-                    Spacer()
-
-                    Button(action: {}) {
-                        Text("Update Preferences")
-                            .font(.caption.bold())
-                            .foregroundStyle(.white)
-                            .frame(width: 150, height: 40)
-                            .background(
-                                RoundedRectangle(cornerRadius: 15)
-                                    .fill(Color.blue)
-                            )
-                    }
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("2BR in Brooklyn, NY")
+                        .font(.headline)
+                    
+                    Text("Budget: $3,500/mo • Pet Friendly")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Button("Update Search") {}
+                        .font(.caption.bold())
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color.blue.opacity(0.15))
+                        .foregroundColor(.blue)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
-
+                
                 Spacer()
-
-                Image(systemName: "person.crop.square.on.square.angled.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 150, height: 150)
+                
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 100, height: 100)
             }
             .padding()
-            .frame(maxWidth: .infinity, maxHeight: 170)
             .background(
-                RoundedRectangle(cornerRadius: 15)
-                    .fill(Color.gray.opacity(0.5))
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemBackground))
             )
-            .clipShape(RoundedRectangle(cornerRadius: 15))
+            .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
+        }
+    }
+}
 
+//////////////////////////////////////////////////////////////////
+// MARK: Documents Section
+//////////////////////////////////////////////////////////////////
+
+private struct DocumentsSection: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
             
-            
-        Spacer()
-            
-            Button(action: {}){
-                Text("Sign Out")
-                    .font(.title3.bold())
-                    .foregroundStyle(.white)
-                    .background(
-                        RoundedRectangle(cornerRadius: 15)
-                            .frame(width: 300, height: 40)
-                            .foregroundStyle(Color.red)
-                            
-                            
-                    )
-                
+            HStack {
+                Text("My Documents")
+                    .font(.headline)
+                Spacer()
+                Text("2/3 Completed")
+                    .foregroundColor(.blue)
+                    .font(.subheadline)
             }
             
-          
-           
-                
+            DocumentRow(title: "Government ID", status: "Verified", color: .green)
+            DocumentRow(title: "Recent Paystubs", status: "Updated 2 days ago", color: .green)
+            DocumentRow(title: "Tax Returns (W2)", status: "Action Required", color: .orange)
+        }
+    }
+}
+
+private struct DocumentRow: View {
+    let title: String
+    let status: String
+    let color: Color
+
+    private var isGoodStatus: Bool {
+        let lower = status.lowercased()
+        return lower.contains("verified") || lower.contains("updated")
+    }
+    
+    var body: some View {
+        HStack {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.gray.opacity(0.15))
+                .frame(width: 44, height: 44)
+                .overlay(Image(systemName: "doc.fill"))
             
+            VStack(alignment: .leading) {
+                Text(title)
+                    .font(.headline)
+                Text(status)
+                    .font(.subheadline)
+                    .foregroundColor(color)
+            }
+            
+            Spacer()
+            
+            Circle()
+                .fill(color)
+                .frame(width: 24, height: 24)
+                .overlay{
+                    Image(systemName: isGoodStatus ? "checkmark" : "xmark.circle")
+                        .foregroundStyle(.white)
+                }
         }
         .padding()
-       
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+        )
+        .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
+    }
+}
+
+//////////////////////////////////////////////////////////////////
+// MARK: Account Settings
+//////////////////////////////////////////////////////////////////
+
+private struct AccountSettingsSection: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            
+            Text("Account Settings")
+                .font(.headline)
+            
+            SettingsRow(title: "Notifications", icon: "bell.fill")
+            SettingsRow(title: "Privacy & Security", icon: "lock.fill")
+            
+            Button("Log Out") {}
+                .foregroundColor(.red)
+                .padding(.top, 8)
+        }
+    }
+}
+
+private struct SettingsRow: View {
+    let title: String
+    let icon: String
+    
+    var body: some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundColor(.gray)
+            
+            Text(title)
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .foregroundColor(.gray)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+        )
+        .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
     }
 }
 

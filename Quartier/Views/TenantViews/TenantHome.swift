@@ -93,7 +93,7 @@ struct SearchBar: View {
 
             // Preference / filter button
             Button(action: {
-                // open filter sheet
+                
             }) {
                 Image(systemName: "slider.horizontal.3")
                     .foregroundColor(.white)
