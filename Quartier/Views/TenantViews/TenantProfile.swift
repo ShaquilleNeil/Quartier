@@ -2,13 +2,12 @@
 //  TenantProfile.swift
 //  Quartier
 //
-//  Created by Shaquille O Neil on 2026-01-29.
-//
 
 import SwiftUI
 
-
 struct TenantProfile: View {
+    @EnvironmentObject var authService: AuthService
+    @State private var showingPreferences = false
     
     var body: some View {
         NavigationStack {
@@ -16,7 +15,7 @@ struct TenantProfile: View {
                 VStack(spacing: 24) {
                     
                     // MARK: Profile Header
-                    ProfileHeaderView()
+                    ProfileHeaderView(userEmail: authService.userSession?.email ?? "Tenant User")
                     
                     // MARK: Edit Button
                     Button(action: {}) {
@@ -29,22 +28,27 @@ struct TenantProfile: View {
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
                     
-
-                    
                     // MARK: Search Preferences
-                    SearchPreferencesCard()
+                    SearchPreferencesCard(onUpdate: {
+                        showingPreferences = true
+                    })
                     
                     // MARK: Documents
                     DocumentsSection()
                     
                     // MARK: Account Settings
-                    AccountSettingsSection()
+                    AccountSettingsSection(onLogout: {
+                        authService.signOut()
+                    })
                 }
                 .padding()
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingPreferences) {
+                TenantPreferencesView()
+            }
         }
     }
 }
@@ -54,11 +58,11 @@ struct TenantProfile: View {
 //////////////////////////////////////////////////////////////////
 
 private struct ProfileHeaderView: View {
+    var userEmail: String
+    
     var body: some View {
         VStack(spacing: 12) {
-            
             ZStack(alignment: .bottomTrailing) {
-                
                 Circle()
                     .fill(Color.gray.opacity(0.2))
                     .frame(width: 120, height: 120)
@@ -80,10 +84,10 @@ private struct ProfileHeaderView: View {
                     )
             }
             
-            Text("Alex Rivers")
-                .font(.title2.bold())
+            Text(userEmail)
+                .font(.title3.bold())
             
-            Text("Verified Tenant • Member since 2022")
+            Text("Verified Tenant • Member since 2026")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             
@@ -113,41 +117,34 @@ private struct Badge: View {
     }
 }
 
-
 //////////////////////////////////////////////////////////////////
 // MARK: Search Preferences Card
 //////////////////////////////////////////////////////////////////
 
 private struct SearchPreferencesCard: View {
+    var onUpdate: () -> Void
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            
-            Text("Current Search Preferences")
-                .font(.headline)
-            
+        Button(action: onUpdate) {
             HStack {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("2BR in Brooklyn, NY")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Housing Preferences")
                         .font(.headline)
+                        .foregroundColor(.primary)
                     
-                    Text("Budget: $3,500/mo • Pet Friendly")
+                    Text("Edit your budget, location, and needs")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    
-                    Button("Update Search") {}
-                        .font(.caption.bold())
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(Color.blue.opacity(0.15))
-                        .foregroundColor(.blue)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
                 
                 Spacer()
                 
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 100, height: 100)
+                Image(systemName: "slider.horizontal.3")
+                    .font(.title2)
+                    .foregroundColor(.blue)
+                    .padding(10)
+                    .background(Color.blue.opacity(0.1))
+                    .clipShape(Circle())
             }
             .padding()
             .background(
@@ -156,17 +153,13 @@ private struct SearchPreferencesCard: View {
             )
             .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
         }
+        .buttonStyle(.plain)
     }
 }
-
-//////////////////////////////////////////////////////////////////
-// MARK: Documents Section
-//////////////////////////////////////////////////////////////////
 
 private struct DocumentsSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            
             HStack {
                 Text("My Documents")
                     .font(.headline)
@@ -175,7 +168,6 @@ private struct DocumentsSection: View {
                     .foregroundColor(.blue)
                     .font(.subheadline)
             }
-            
             DocumentRow(title: "Government ID", status: "Verified", color: .green)
             DocumentRow(title: "Recent Paystubs", status: "Updated 2 days ago", color: .green)
             DocumentRow(title: "Tax Returns (W2)", status: "Action Required", color: .orange)
@@ -187,92 +179,49 @@ private struct DocumentRow: View {
     let title: String
     let status: String
     let color: Color
-
     private var isGoodStatus: Bool {
         let lower = status.lowercased()
         return lower.contains("verified") || lower.contains("updated")
     }
-    
     var body: some View {
         HStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.gray.opacity(0.15))
-                .frame(width: 44, height: 44)
-                .overlay(Image(systemName: "doc.fill"))
-            
+            RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.15)).frame(width: 44, height: 44).overlay(Image(systemName: "doc.fill"))
             VStack(alignment: .leading) {
-                Text(title)
-                    .font(.headline)
-                Text(status)
-                    .font(.subheadline)
-                    .foregroundColor(color)
+                Text(title).font(.headline)
+                Text(status).font(.subheadline).foregroundColor(color)
             }
-            
             Spacer()
-            
-            Circle()
-                .fill(color)
-                .frame(width: 24, height: 24)
-                .overlay{
-                    Image(systemName: isGoodStatus ? "checkmark" : "xmark.circle")
-                        .foregroundStyle(.white)
-                }
+            Circle().fill(color).frame(width: 24, height: 24).overlay{ Image(systemName: isGoodStatus ? "checkmark" : "xmark.circle").foregroundStyle(.white) }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-        )
-        .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
+        .padding().background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground))).shadow(color: .black.opacity(0.05), radius: 8, y: 4)
     }
 }
 
-//////////////////////////////////////////////////////////////////
-// MARK: Account Settings
-//////////////////////////////////////////////////////////////////
-
 private struct AccountSettingsSection: View {
+    var onLogout: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            
-            Text("Account Settings")
-                .font(.headline)
-            
+            Text("Account Settings").font(.headline)
             SettingsRow(title: "Notifications", icon: "bell.fill")
             SettingsRow(title: "Privacy & Security", icon: "lock.fill")
-            
-            Button("Log Out") {}
-                .foregroundColor(.red)
-                .padding(.top, 8)
+            Button("Log Out") { onLogout() }.foregroundColor(.red).padding(.top, 8)
         }
     }
 }
 
 private struct SettingsRow: View {
-    let title: String
-    let icon: String
-    
+    let title: String; let icon: String
     var body: some View {
         HStack {
-            Image(systemName: icon)
-                .foregroundColor(.gray)
-            
+            Image(systemName: icon).foregroundColor(.gray)
             Text(title)
-            
             Spacer()
-            
-            Image(systemName: "chevron.right")
-                .foregroundColor(.gray)
+            Image(systemName: "chevron.right").foregroundColor(.gray)
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-        )
-        .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+        .padding().background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground))).shadow(color: .black.opacity(0.05), radius: 6, y: 3)
     }
 }
-
 #Preview {
     TenantProfile()
+        .environmentObject(AuthService.shared)
 }

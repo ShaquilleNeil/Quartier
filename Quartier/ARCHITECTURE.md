@@ -10,7 +10,7 @@
 
 ### 1. Root Directory
 * **QuartierApp.swift**: Application entry point. Configures Firebase setup on launch.
-* **ContentView.swift**: The root view coordinator. Responsible for routing users based on `AuthService` state (Login vs. Home).
+* **ContentView.swift**: The root view coordinator. Responsible for routing users based on `AuthService` state (Login vs. Home vs. Onboarding).
 * **Assets.xcassets**: Contains app icons (`AppIcon`), color sets (`AccentColor`), and static images.
 
 ### 2. Models (Data Layer)
@@ -26,8 +26,8 @@ Defines the data structures used throughout the application.
 Located in `Quartier/Services/`
 Handles backend communication.
 
-* **AuthService.swift**: Manages authentication (Sign In, Sign Up via Email/Google). Publishes `userSession` and `currentUser`.
-* **FirebaseManager.swift**: Singleton for Firestore operations (saving users, updating preferences).
+* **AuthService.swift**: Manages authentication (Sign In, Sign Up via Email/Google). Publishes `userSession`, `currentUserRole`, and `hasCompletedPreferences`.
+* **FirebaseManager.swift**: Singleton for Firestore operations (saving users, fetching roles, updating preferences/onboarding flags).
 
 ### 4. Views (UI Layer)
 Located in `Quartier/Views/`
@@ -42,13 +42,13 @@ Located in `Quartier/Views/`
 * **SignUp.swift**: User registration screen with role selection.
 
 #### Tenant Feature Set (`Views/TenantViews/`)
-* **TenantPreferencesView.swift**: **(New)** Onboarding screen for capturing budget, location, and housing needs.
+* **TenantPreferencesView.swift**: Onboarding screen for capturing budget, location, and housing needs. Pushes data to Firestore.
 * **TenantTabView.swift**: Main container (Tab Bar) for the Tenant UI.
-* **TenantHome.swift**: Dashboard/Feed.
+* **TenantHome.swift**: Dashboard/Feed. Includes search bar filter tied to Preferences.
 * **TenantDiscover.swift**: Search and Map interface.
 * **TenantSaved.swift**: Saved listings.
 * **TenantSchedule.swift**: Viewing appointments.
-* **TenantProfile.swift**: Settings and profile management.
+* **TenantProfile.swift**: Settings, dynamic profile management, and logout.
 
 #### Landlord Feature Set (`Views/LandlordViews/`)
 * **LandlordTabView.swift**: Main container for the Landlord UI.
@@ -56,7 +56,7 @@ Located in `Quartier/Views/`
 * **LandlordListings.swift**: Inventory management.
 * **LandlordMessages.swift**: Inbox for tenant inquiries.
 * **LandlordSchedule.swift**: Calendar for viewings.
-* **LandlordProfile.swift**: Account management.
+* **LandlordProfile.swift**: Account management, dynamic profile, and logout.
 
 ### 5. Legacy / Template Files
 * **Persistence.swift** & **Quartier.xcdatamodeld**: CoreData files (unused/deprecated).
@@ -66,11 +66,10 @@ Located in `Quartier/Views/`
 2. **Auth Check**: `ContentView` observes `AuthService`.
    * **If Unauthenticated**: Show `LoginSwitch` (defaulting to Tenant Login).
    * **If Authenticated**: Check `UserType` and Onboarding Status.
-     * **New Tenant**: Show `TenantPreferencesView` (Profile Setup).
-     * **Existing Tenant**: Show `TenantTabView`.
+     * **New Tenant (`hasCompletedPreferences == false`)**: Show `TenantPreferencesView` (Profile Setup).
+     * **Existing Tenant (`hasCompletedPreferences == true`)**: Show `TenantTabView`.
      * **Landlord**: Show `LandlordTabView`.
 
-
-##Work Done#####
-**Shaquille**: `Tenant Home, Apartment Cards, tenant profile - 3/2/2026`
-
+## Work Done
+* **Shaquille**: `Tenant Home, Apartment Cards, tenant profile - 3/2/2026`
+* **Akeyla**: `Firebase Auth wiring, Onboarding preferences routing, Logout functionality, Profile UI wiring - 2/25/2026`

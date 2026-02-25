@@ -23,7 +23,6 @@ struct LandlordLogin: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         
-                        // MARK: Header
                         VStack(spacing: 16) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 12)
@@ -49,7 +48,6 @@ struct LandlordLogin: View {
                         .padding(.top, 10)
                         .padding(.bottom, 24)
                         
-                        // MARK: Fields
                         VStack(spacing: 16) {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Email")
@@ -89,7 +87,7 @@ struct LandlordLogin: View {
                         HStack {
                             Spacer()
                             Button("Forgot Password?") {
-                                // TODO: Handle Forgot Password
+                                // todo
                             }
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(Color.quartierBlue)
@@ -97,7 +95,6 @@ struct LandlordLogin: View {
                         .padding(.top, 12)
                         .padding(.horizontal, 24)
                         
-                        // MARK: Login Button
                         Button(action: handleLogin) {
                             Text("Log In")
                                 .font(.system(size: 16, weight: .bold))
@@ -111,7 +108,6 @@ struct LandlordLogin: View {
                         .padding(.horizontal, 24)
                         .padding(.top, 24)
                         
-                        // MARK: Divider
                         HStack {
                             Rectangle().fill(Color(hex: "cfdbe7")).frame(height: 1)
                             Text("Or continue with")
@@ -123,14 +119,12 @@ struct LandlordLogin: View {
                         .padding(.vertical, 24)
                         .padding(.horizontal, 24)
                         
-                        // MARK: Social Buttons
                         VStack(spacing: 12) {
                             SocialButton(text: "Continue with Google", iconName: "globe")
                             SocialButton(text: "Continue with Apple", iconName: "apple.logo", isDark: true)
                         }
                         .padding(.horizontal, 24)
                         
-                        // MARK: Footer
                         HStack {
                             Text("New to Quartier?")
                                 .foregroundColor(Color(hex: "4c739a"))
@@ -154,9 +148,13 @@ struct LandlordLogin: View {
     }
     
     func handleLogin() {
-        // TODO: Call AuthService.login()
-        // Pass UserType.landlord
-        print("Landlord Login: \(email)")
+        AuthService.shared.login(email: email, password: password) { success in
+            if success {
+                print("logged in landlord!")
+            } else {
+                print("login failed")
+            }
+        }
     }
 }
 

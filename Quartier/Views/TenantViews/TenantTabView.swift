@@ -2,8 +2,6 @@
 //  TenantTabView.swift
 //  Quartier
 //
-//  Created by Shaquille O Neil on 2026-01-29.
-//
 
 import SwiftUI
 
@@ -13,7 +11,7 @@ struct TenantTabView: View {
             Tab("Home", systemImage: "house.fill"){
                 TenantHome()
             }
-            Tab("Discover", systemImage: "globe.fill"){
+            Tab("Discover", systemImage: "magnifyingglass"){ 
                 TenantDiscover()
             }
             Tab("Saved", systemImage: "bookmark.fill"){

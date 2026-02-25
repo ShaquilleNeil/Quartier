@@ -2,77 +2,41 @@
 //  ContentView.swift
 //  Quartier
 //
-//  Created by Shaquille O Neil on 2026-01-28.
-//
 
 import SwiftUI
-import CoreData
 
 struct ContentView: View {
-    @State private var showTenant: Bool = true
-    @Environment(\.managedObjectContext) private var viewContext
-
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: true)],
-        animation: .default)
-    private var items: FetchedResults<Item>
-
+    @EnvironmentObject var authService: AuthService
+    
     var body: some View {
-        
-        NavigationStack{
-            NavigationLink(destination: LandlordTabView()) {
-                Text("landlord")
-            }
-            
-            
-            NavigationLink(destination: TenantTabView()) {
-                Text("tenant")
-            }
-        }
-        
-      
-       
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
-            }
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { items[$0] }.forEach(viewContext.delete)
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
+        Group {
+            if authService.userSession != nil {
+                // Wait for role to load from Firestore
+                if let role = authService.currentUserRole {
+                    if role == "tenant" {
+                        if authService.hasCompletedPreferences {
+                            TenantTabView()
+                        } else {
+                            TenantPreferencesView()
+                        }
+                    } else if role == "landlord" {
+                        LandlordTabView()
+                    }
+                } else {
+                    VStack {
+                        ProgressView()
+                        Text("Loading...")
+                            .foregroundColor(.gray)
+                    }
+                }
+            } else {
+                LoginSwitch()
             }
         }
     }
 }
 
-private let itemFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .short
-    formatter.timeStyle = .medium
-    return formatter
-}()
-
 #Preview {
-    ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+    ContentView()
+        .environmentObject(AuthService.shared)
 }
