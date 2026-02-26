@@ -2,21 +2,33 @@
 //  LandlordProfile.swift
 //  Quartier
 //
-//  Created by Shaquille O Neil on 2026-01-29.
+
+//
+//  LandlordProfile.swift
+//  Quartier
 //
 
 import SwiftUI
 
 struct LandlordProfile: View {
+    @EnvironmentObject var authService: AuthService
+    
     var body: some View {
-        LandlordProfileView()
+        LandlordProfileView(
+            userEmail: authService.userSession?.email ?? "Landlord User",
+            onLogout: {
+                authService.signOut()
+            }
+        )
     }
 }
 
 private struct LandlordProfileView: View {
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
-
     @State private var isLandlordMode = true
+    
+    var userEmail: String
+    var onLogout: () -> Void
 
     var body: some View {
         ZStack {
@@ -61,10 +73,11 @@ private struct LandlordProfileView: View {
                                 .offset(x: 2, y: 2)
                         }
 
-                        Text("Shaquille O’Neil")
-                            .font(.system(size: 22, weight: .bold))
+                        // Replaced static name with Firebase data
+                        Text(userEmail)
+                            .font(.system(size: 20, weight: .bold))
 
-                        Text("Verified Landlord • Member since 2024")
+                        Text("Verified Landlord • Member since 2026")
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
 
@@ -141,7 +154,8 @@ private struct LandlordProfileView: View {
                         Divider().opacity(0.15)
                         settingRow("Privacy & Security", icon: "lock.fill")
                         Divider().opacity(0.15)
-                        Button {} label: {
+                        
+                        Button(action: onLogout) {
                             HStack(spacing: 12) {
                                 Image(systemName: "rectangle.portrait.and.arrow.right")
                                     .foregroundStyle(.red)
@@ -222,4 +236,5 @@ private struct LandlordProfileView: View {
 
 #Preview {
     LandlordProfile()
+        .environmentObject(AuthService.shared)
 }

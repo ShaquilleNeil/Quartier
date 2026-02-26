@@ -2,13 +2,13 @@
 //  TenantPreferences.swift
 //  Quartier
 //
-//  Created by Team Quartier.
-//
 
 import SwiftUI
+import FirebaseFirestore // Need this to save!
 
 struct TenantPreferencesView: View {
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authService: AuthService // Need this to get the user ID
     
     // MARK: - Form State
     @State private var locationQuery = ""
@@ -24,7 +24,6 @@ struct TenantPreferencesView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // Background
                 Color(hex: "f6f7f8").ignoresSafeArea()
                 
                 VStack(spacing: 0) {
@@ -102,7 +101,6 @@ struct TenantPreferencesView: View {
                                         
                                         Slider(value: $budgetMin, in: 500...5000, step: 50)
                                             .tint(Color.quartierBlue)
-                                            
                                             .onChange(of: budgetMin) { _, newValue in
                                                 if newValue > budgetMax {
                                                     budgetMax = newValue
@@ -118,7 +116,6 @@ struct TenantPreferencesView: View {
                                         
                                         Slider(value: $budgetMax, in: 500...5000, step: 50)
                                             .tint(Color.quartierBlue)
-                                            
                                             .onChange(of: budgetMax) { _, newValue in
                                                 if newValue < budgetMin {
                                                     budgetMin = newValue
@@ -227,12 +224,32 @@ struct TenantPreferencesView: View {
     
     // MARK: - Logic
     func handleSavePreferences() {
-        print("Saving Preferences...")
-        print("Location: \(locationQuery)")
-        print("Budget: \(Int(budgetMin)) - \(Int(budgetMax))")
-        print("Bedrooms: \(selectedBedroom)")
+        guard let uid = authService.userSession?.uid else { return }
         
-        dismiss()
+        // This packages up the exact settings they chose
+        let prefsData: [String: Any] = [
+            "hasCompletedPreferences": true,
+            "preferences": [
+                "location": locationQuery,
+                "budgetMin": budgetMin,
+                "budgetMax": budgetMax,
+                "bedrooms": selectedBedroom,
+                "petsAllowed": petsAllowed,
+                "fullyFurnished": fullyFurnished,
+                "parkingIncluded": parkingIncluded
+            ]
+        ]
+        
+        // Push to Firebase and dismiss the sheet/view!
+        Firestore.firestore().collection("users").document(uid).setData(prefsData, merge: true) { error in
+            if let error = error {
+                print("Failed to save: \(error)")
+            } else {
+                // If you want this to trigger ContentView routing, call authService.fetchUserData() here!
+                authService.fetchUserData()
+                dismiss()
+            }
+        }
     }
 }
 
@@ -269,4 +286,5 @@ struct PreferenceToggleRow: View {
 
 #Preview {
     TenantPreferencesView()
+        .environmentObject(AuthService.shared)
 }

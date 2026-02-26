@@ -8,10 +8,15 @@
 import SwiftUI
 
 struct TenantHome: View {
+    @State private var showingPreferences = false
+    
     var body: some View {
         NavigationStack {
             VStack{
-               SearchBar()
+                SearchBar(onFilterTapped: {
+                    showingPreferences = true
+                })
+                
                 ScrollView{
                     let columns = [
                         GridItem(.flexible())
@@ -27,20 +32,13 @@ struct TenantHome: View {
                                 baths: 1,
                                 sqft: 950,
                                 price: 1400.00,
-                                location: "Montreal",
-                               
-                               
-                               
-                                
+                                location: "Montreal"
                             )
                         }
                     }
                     .padding(.top)
 
                 }
-               
-                
-                
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -60,20 +58,19 @@ struct TenantHome: View {
                     
                 }
             }
-
-            
             .padding()
+            // 3. Attach the sheet to show the preferences
+            .sheet(isPresented: $showingPreferences) {
+                TenantPreferencesView()
+            }
         }
-        
-       
-       
-       
     }
 }
 
 
 struct SearchBar: View {
     @State private var searchText: String = ""
+    var onFilterTapped: () -> Void //
 
     var body: some View {
         HStack(spacing: 12) {
@@ -92,9 +89,7 @@ struct SearchBar: View {
             .cornerRadius(14)
 
             // Preference / filter button
-            Button(action: {
-                
-            }) {
+            Button(action: onFilterTapped) {
                 Image(systemName: "slider.horizontal.3")
                     .foregroundColor(.white)
                     .frame(width: 44, height: 44)
