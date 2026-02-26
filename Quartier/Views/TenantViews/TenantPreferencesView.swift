@@ -8,7 +8,11 @@ import FirebaseFirestore // Need this to save!
 
 struct TenantPreferencesView: View {
     @Environment(\.dismiss) var dismiss
+<<<<<<< Updated upstream
     @EnvironmentObject var authService: AuthService // Need this to get the user ID
+=======
+    @Environment(\.managedObjectContext) private var context
+>>>>>>> Stashed changes
     
     // MARK: - Form State
     @State private var locationQuery = ""
@@ -18,6 +22,9 @@ struct TenantPreferencesView: View {
     @State private var petsAllowed = false
     @State private var fullyFurnished = false
     @State private var parkingIncluded = false
+    @State private var userloggedin = true
+    
+    @EnvironmentObject private var holder: CoreDataManager
     
     let bedroomOptions = ["Studio", "1", "2", "3+"]
     
@@ -28,39 +35,53 @@ struct TenantPreferencesView: View {
                 
                 VStack(spacing: 0) {
                     
-                    // MARK: Header
-                    HStack {
-                        Button(action: { dismiss() }) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(Color(hex: "0d141b"))
-                                .padding(8)
-                        }
-                        Spacer()
-                        Text("Profile Setup")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                        Spacer()
-                        Color.clear.frame(width: 40, height: 40)
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
+                
                     
                     ScrollView {
                         VStack(spacing: 32) {
                             
-                            // MARK: Title Section
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Find your perfect home")
-                                    .font(.system(size: 32, weight: .bold))
-                                    .foregroundColor(Color(hex: "0d141b"))
-                                    .fixedSize(horizontal: false, vertical: true)
-                                
-                                Text("Set your preferences so we can curate the best listings for you.")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(Color(hex: "64748b"))
+                            if(userloggedin == true){
+                                Text("Preferences")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                           
+                            // MARK: Title Section
+                            if (userloggedin == false){
+                                // MARK: Header
+                                HStack {
+                                    Button(action: { dismiss() }) {
+                                        Image(systemName: "chevron.left")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundColor(Color(hex: "0d141b"))
+                                            .padding(8)
+                                    }
+                                    Spacer()
+                                    Text("Profile Setup")
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                    Spacer()
+                                    Color.clear.frame(width: 40, height: 40)
+                                }
+                                .padding(.horizontal)
+                                .padding(.vertical, 8)
+                                
+                                
+                                
+                                
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Find your perfect home")
+                                        .font(.system(size: 32, weight: .bold))
+                                        .foregroundColor(Color(hex: "0d141b"))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    
+                                    Text("Set your preferences so we can curate the best listings for you.")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(Color(hex: "64748b"))
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            
                             
                             // MARK: 1. Location Input
                             VStack(alignment: .leading, spacing: 12) {
@@ -204,7 +225,20 @@ struct TenantPreferencesView: View {
                 VStack {
                     Spacer()
                     VStack(spacing: 12) {
-                        Button(action: handleSavePreferences) {
+                        Button(action: {
+                            holder.savePreferences(
+                                locationQuery: locationQuery,
+                                budgetMin: budgetMin,
+                                budgetMax: budgetMax,
+                                selectedBedroom: selectedBedroom,
+                                petsAllowed: petsAllowed,
+                                fullyFurnished: fullyFurnished,
+                                parkingIncluded: parkingIncluded,
+                                context
+                            )
+                            // Optionally dismiss after saving
+                            dismiss()
+                        }) {
                             Text("Save & Continue")
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(.white)
@@ -219,9 +253,20 @@ struct TenantPreferencesView: View {
                     .background(Rectangle().fill(.ultraThinMaterial).ignoresSafeArea())
                 }
             }
+        }.onAppear {
+            if let saved = holder.preferences {
+                locationQuery = saved.locationQuery ?? ""
+                budgetMin = saved.budgetMin
+                budgetMax = saved.budgetMax
+                selectedBedroom = saved.selectedBedroom ?? "Studio"
+                petsAllowed = saved.petsAllowed
+                fullyFurnished = saved.fullyFurnished
+                parkingIncluded = saved.parkingIncluded
+            }
         }
     }
     
+<<<<<<< Updated upstream
     // MARK: - Logic
     func handleSavePreferences() {
         guard let uid = authService.userSession?.uid else { return }
@@ -251,6 +296,9 @@ struct TenantPreferencesView: View {
             }
         }
     }
+=======
+ 
+>>>>>>> Stashed changes
 }
 
 // MARK: - Helper Components

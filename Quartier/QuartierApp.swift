@@ -22,9 +22,15 @@ struct QuartierApp: App {
     @StateObject var authService = AuthService.shared
 
     var body: some Scene {
+        let ctx = persistenceController.container.viewContext
         WindowGroup {
             ContentView()
+<<<<<<< Updated upstream
                 .environmentObject(authService)
+=======
+                .environment(\.managedObjectContext, ctx)
+                .environmentObject(CoreDataManager(ctx))
+>>>>>>> Stashed changes
         }
     }
 }
