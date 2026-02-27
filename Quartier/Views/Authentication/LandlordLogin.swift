@@ -13,6 +13,7 @@ struct LandlordLogin: View {
     @State private var email = ""
     @State private var password = ""
     @State private var isPasswordVisible = false
+    @EnvironmentObject var authService: AuthService
     
     var body: some View {
         NavigationStack {
@@ -148,7 +149,7 @@ struct LandlordLogin: View {
     }
     
     func handleLogin() {
-        AuthService.shared.login(email: email, password: password) { success in
+        authService.login(email: email, password: password) { success in
             if success {
                 print("logged in landlord!")
             } else {
@@ -159,5 +160,10 @@ struct LandlordLogin: View {
 }
 
 #Preview {
-    LandlordLogin()
+    let firebase = FirebaseManager()
+    let auth = AuthService(firebase: firebase)
+
+    return LandlordLogin()
+        .environmentObject(firebase)
+        .environmentObject(auth)
 }

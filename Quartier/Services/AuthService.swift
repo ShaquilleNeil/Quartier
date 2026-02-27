@@ -2,77 +2,119 @@
 //  AuthService.swift
 //  Quartier
 //
-//  Created by Shaquille O Neil on 2026-01-29.
-//
+
 import Foundation
 import FirebaseAuth
+import Combine
 
 class AuthService: ObservableObject {
+    
+    // MARK: - Published routing state
+    
     @Published var userSession: FirebaseAuth.User?
     @Published var currentUserRole: String?
-    @Published var hasCompletedPreferences: Bool = false // NEW
+    @Published var hasCompletedPreferences: Bool = false
+    @Published var isRenting: Bool = false
     
-    static let shared = AuthService()
+    // MARK: - Dependencies
     
-    init() {
-        self.userSession = Auth.auth().currentUser
-        if userSession != nil {
-            fetchUserData()
-        }
-    }
+    private let firebase: FirebaseManager
     
-    // login
-    func login(email: String, password: String, completion: @escaping (Bool) -> Void) {
-        Auth.auth().signIn(withEmail: email, password: password) { result, error in
-            if error != nil {
-                completion(false)
-                return
-            }
-            self.userSession = result?.user
-            self.fetchUserData()
-            completion(true)
-        }
-    }
+    // MARK: - Init
     
-    // signup
-    func register(email: String, password: String, role: String, completion: @escaping (Bool) -> Void) {
-        Auth.auth().createUser(withEmail: email, password: password) { result, error in
-            if error != nil {
-                completion(false)
-                return
-            }
+    init(firebase: FirebaseManager) {
+        self.firebase = firebase
+        
+        // 🔥 Reactive auth listener (canonical Firebase pattern)
+        Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            guard let self else { return }
             
-            guard let uid = result?.user.uid else { return }
-            
-            FirebaseManager.shared.saveUser(uid: uid, email: email, role: role) { success in
-                if success {
-                    self.userSession = result?.user
-                    self.currentUserRole = role
-                    self.hasCompletedPreferences = false
-                    completion(true)
+            DispatchQueue.main.async {
+                self.userSession = user
+                
+                if user != nil {
+                    self.fetchUserData()
                 } else {
-                    completion(false)
+                    self.resetState()
                 }
             }
         }
     }
     
-    // get extra user info
-    func fetchUserData() {
-        guard let uid = userSession?.uid else { return }
-        FirebaseManager.shared.fetchUser(uid: uid) { data in
-            DispatchQueue.main.async {
-                self.currentUserRole = data?["role"] as? String
-                self.hasCompletedPreferences = data?["hasCompletedPreferences"] as? Bool ?? false
+    // MARK: - Login
+    
+    func login(email: String, password: String, completion: @escaping (Bool) -> Void) {
+        Auth.auth().signIn(withEmail: email, password: password) { _, error in
+            if let error = error {
+                print("Login error:", error)
+                completion(false)
+                return
+            }
+
+            // 🔥 No manual fetch needed
+            // Auth listener will handle Firestore hydration
+
+            completion(true)
+        }
+    }
+    
+    // MARK: - Register
+    
+    func register(email: String, password: String, role: String, completion: @escaping (Bool) -> Void) {
+        Auth.auth().createUser(withEmail: email, password: password) { result, error in
+            
+            if error != nil {
+                completion(false)
+                return
+            }
+            
+            guard let uid = result?.user.uid else {
+                completion(false)
+                return
+            }
+            
+            // Save user doc with lifecycle defaults
+            self.firebase.saveUser(uid: uid, email: email, role: role) { success in
+                DispatchQueue.main.async {
+                    if success {
+                        // Auth listener will hydrate everything
+                        completion(true)
+                    } else {
+                        completion(false)
+                    }
+                }
             }
         }
     }
     
-    // logout
+    // MARK: - Fetch Firestore user document
+    
+    func fetchUserData() {
+        guard let uid = userSession?.uid else { return }
+        
+        firebase.fetchUser(uid: uid) { [weak self] data in
+            guard let self else { return }
+            
+            DispatchQueue.main.async {
+                self.currentUserRole = data?["role"] as? String
+                self.hasCompletedPreferences = data?["hasCompletedPreferences"] as? Bool ?? false
+                self.isRenting = data?["isRenting"] as? Bool ?? false
+            }
+        }
+    }
+    
+    // MARK: - Logout
+    
     func signOut() {
         try? Auth.auth().signOut()
-        self.userSession = nil
+        // Auth listener will reset state automatically
+    }
+    
+    // MARK: - Helpers
+    
+    private func resetState() {
         self.currentUserRole = nil
         self.hasCompletedPreferences = false
+        self.isRenting = false
     }
 }

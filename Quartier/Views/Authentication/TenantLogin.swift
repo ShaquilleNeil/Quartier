@@ -9,6 +9,7 @@ import SwiftUI
 
 struct TenantLogin: View {
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authService: AuthService
     
     @State private var email = ""
     @State private var password = ""
@@ -148,7 +149,7 @@ struct TenantLogin: View {
     }
     
     func handleLogin() {
-        AuthService.shared.login(email: email, password: password) { success in
+        authService.login(email: email, password: password) { success in
             if success {
                 print("logged in tenant!")
             } else {
@@ -159,5 +160,10 @@ struct TenantLogin: View {
 }
 
 #Preview {
-    TenantLogin()
+    let firebase = FirebaseManager()
+    let auth = AuthService(firebase: firebase)
+
+    return TenantLogin()
+        .environmentObject(firebase)
+        .environmentObject(auth)
 }

@@ -40,24 +40,7 @@ struct TenantHome: View {
 
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack{
-                        Button {
-                            // TODO: Open chat view
-                        } label: {
-                            Image(systemName: "bell.fill")
-                        }
-                        
-                        Button {
-                            // TODO: Open chat view
-                        } label: {
-                            Image(systemName: "bubble.left.and.bubble.right")
-                        }
-                    }
-                    
-                }
-            }
+           
             .padding()
             // 3. Attach the sheet to show the preferences
             .sheet(isPresented: $showingPreferences) {
@@ -71,15 +54,15 @@ struct TenantHome: View {
 struct SearchBar: View {
     @State private var searchText: String = ""
     var onFilterTapped: () -> Void //
-
+    
     var body: some View {
         HStack(spacing: 12) {
-
+            
             // Search field
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.gray)
-
+                
                 TextField("Brooklyn, NY", text: $searchText)
                     .textInputAutocapitalization(.words)
                     .disableAutocorrection(true)
@@ -87,25 +70,21 @@ struct SearchBar: View {
             .padding(12)
             .background(Color(.systemGray6))
             .cornerRadius(14)
-
+            
             // Preference / filter button
-<<<<<<< Updated upstream
             Button(action: onFilterTapped) {
-=======
-            NavigationLink(destination: TenantPreferencesView()) {
->>>>>>> Stashed changes
                 Image(systemName: "slider.horizontal.3")
                     .foregroundColor(.white)
                     .frame(width: 44, height: 44)
                     .background(Color.blue)
                     .cornerRadius(14)
-            }.navigationBarBackButtonHidden(true)
+            }
+            .navigationBarBackButtonHidden(true)
+            .padding(.horizontal)
         }
-        .padding(.horizontal)
     }
+    
 }
-
-
 #Preview {
     TenantHome()
 }

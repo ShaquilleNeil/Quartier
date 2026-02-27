@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 
 struct User: Identifiable, Equatable {
     let id: String              // Firebase UID
@@ -13,5 +14,6 @@ struct User: Identifiable, Equatable {
     let role: UserType
     let createdAt: Date
     let isActive: Bool
+    let isRenting: Bool
 }
 

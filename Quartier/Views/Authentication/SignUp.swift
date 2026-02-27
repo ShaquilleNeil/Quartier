@@ -15,6 +15,7 @@ struct SignUp: View {
     @State private var email = ""
     @State private var password = ""
     @State private var isPasswordVisible = false
+    @EnvironmentObject var authService: AuthService
     
     var body: some View {
         NavigationStack {
@@ -145,7 +146,7 @@ struct SignUp: View {
     
     func handleSignUp() {
         // call auth service
-        AuthService.shared.register(email: email, password: password, role: selectedRole.rawValue) { success in
+        authService.register(email: email, password: password, role: selectedRole.rawValue) { success in
             if success {
                 print("signed up as \(selectedRole.rawValue)")
             } else {
@@ -156,5 +157,10 @@ struct SignUp: View {
 }
 
 #Preview {
-    SignUp()
+    let firebase = FirebaseManager()
+    let auth = AuthService(firebase: firebase)
+
+    return SignUp()
+        .environmentObject(firebase)
+        .environmentObject(auth)
 }

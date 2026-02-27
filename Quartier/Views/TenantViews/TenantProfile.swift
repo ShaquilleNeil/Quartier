@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct TenantProfile: View {
     @EnvironmentObject var authService: AuthService
@@ -222,6 +223,10 @@ private struct SettingsRow: View {
     }
 }
 #Preview {
-    TenantProfile()
-        .environmentObject(AuthService.shared)
+    let firebase = FirebaseManager()
+    let auth = AuthService(firebase: firebase)
+
+    return TenantProfile()
+        .environmentObject(firebase)
+        .environmentObject(auth)
 }

@@ -8,11 +8,9 @@ import FirebaseFirestore // Need this to save!
 
 struct TenantPreferencesView: View {
     @Environment(\.dismiss) var dismiss
-<<<<<<< Updated upstream
-    @EnvironmentObject var authService: AuthService // Need this to get the user ID
-=======
+    @EnvironmentObject var authService: AuthService
     @Environment(\.managedObjectContext) private var context
->>>>>>> Stashed changes
+    @EnvironmentObject private var holder: CoreDataManager
     
     // MARK: - Form State
     @State private var locationQuery = ""
@@ -24,7 +22,6 @@ struct TenantPreferencesView: View {
     @State private var parkingIncluded = false
     @State private var userloggedin = true
     
-    @EnvironmentObject private var holder: CoreDataManager
     
     let bedroomOptions = ["Studio", "1", "2", "3+"]
     
@@ -35,7 +32,7 @@ struct TenantPreferencesView: View {
                 
                 VStack(spacing: 0) {
                     
-                
+                    
                     
                     ScrollView {
                         VStack(spacing: 32) {
@@ -45,7 +42,7 @@ struct TenantPreferencesView: View {
                                     .font(.headline)
                                     .fontWeight(.bold)
                             }
-                           
+                            
                             // MARK: Title Section
                             if (userloggedin == false){
                                 // MARK: Header
@@ -266,73 +263,75 @@ struct TenantPreferencesView: View {
         }
     }
     
-<<<<<<< Updated upstream
+    //TODO: FIX
     // MARK: - Logic
-    func handleSavePreferences() {
-        guard let uid = authService.userSession?.uid else { return }
-        
-        // This packages up the exact settings they chose
-        let prefsData: [String: Any] = [
-            "hasCompletedPreferences": true,
-            "preferences": [
-                "location": locationQuery,
-                "budgetMin": budgetMin,
-                "budgetMax": budgetMax,
-                "bedrooms": selectedBedroom,
-                "petsAllowed": petsAllowed,
-                "fullyFurnished": fullyFurnished,
-                "parkingIncluded": parkingIncluded
-            ]
-        ]
-        
-        // Push to Firebase and dismiss the sheet/view!
-        Firestore.firestore().collection("users").document(uid).setData(prefsData, merge: true) { error in
-            if let error = error {
-                print("Failed to save: \(error)")
-            } else {
-                // If you want this to trigger ContentView routing, call authService.fetchUserData() here!
-                authService.fetchUserData()
-                dismiss()
-            }
-        }
-    }
-=======
- 
->>>>>>> Stashed changes
-}
-
-// MARK: - Helper Components
-
-struct PreferenceToggleRow: View {
-    let icon: String
-    let iconColor: Color
-    let iconBg: Color
-    let title: String
-    @Binding var isOn: Bool
+    //    func handleSavePreferences() {
+    //        guard let uid = authService.userSession?.uid else { return }
+    //
+    //        // This packages up the exact settings they chose
+    //        let prefsData: [String: Any] = [
+    //            "hasCompletedPreferences": true,
+    //            "preferences": [
+    //                "location": locationQuery,
+    //                "budgetMin": budgetMin,
+    //                "budgetMax": budgetMax,
+    //                "bedrooms": selectedBedroom,
+    //                "petsAllowed": petsAllowed,
+    //                "fullyFurnished": fullyFurnished,
+    //                "parkingIncluded": parkingIncluded
+    //            ]
+    //        ]
+    //
+    //        // Push to Firebase and dismiss the sheet/view!
+    //        Firestore.firestore().collection("users").document(uid).setData(prefsData, merge: true) { error in
+    //            if let error = error {
+    //                print("Failed to save: \(error)")
+    //            } else {
+    //                // If you want this to trigger ContentView routing, call authService.fetchUserData() here!
+    //                authService.fetchUserData()
+    //                dismiss()
+    //            }
+    //        }
+    //    }
+    //
+    //}
     
-    var body: some View {
-        HStack {
-            ZStack {
-                Circle().fill(iconBg).frame(width: 40, height: 40)
-                Image(systemName: icon).foregroundColor(iconColor)
+    // MARK: - Helper Components
+    
+    struct PreferenceToggleRow: View {
+        let icon: String
+        let iconColor: Color
+        let iconBg: Color
+        let title: String
+        @Binding var isOn: Bool
+        
+        var body: some View {
+            HStack {
+                ZStack {
+                    Circle().fill(iconBg).frame(width: 40, height: 40)
+                    Image(systemName: icon).foregroundColor(iconColor)
+                }
+                .padding(.trailing, 8)
+                
+                Text(title)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(Color(hex: "0d141b"))
+                
+                Spacer()
+                
+                Toggle("", isOn: $isOn)
+                    .labelsHidden()
+                    .tint(Color.quartierBlue)
             }
-            .padding(.trailing, 8)
-            
-            Text(title)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(Color(hex: "0d141b"))
-            
-            Spacer()
-            
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .tint(Color.quartierBlue)
+            .padding(16)
         }
-        .padding(16)
     }
 }
-
 #Preview {
-    TenantPreferencesView()
-        .environmentObject(AuthService.shared)
+    let firebase = FirebaseManager()
+    let auth = AuthService(firebase: firebase)
+
+    return TenantPreferencesView()
+        .environmentObject(firebase)
+        .environmentObject(auth)
 }
