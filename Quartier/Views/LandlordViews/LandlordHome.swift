@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct LandlordHome: View {
     var body: some View {
@@ -15,10 +16,12 @@ struct LandlordHome: View {
 
 // MARK: - Dashboard (mapped from HTML "Landlord Dashboard")
 private struct LandlordDashboardView: View {
+    @Environment(\.managedObjectContext) private var viewContext
 
     enum Mode: String, CaseIterable { case landlord = "Landlord", tenant = "Tenant" }
 
     @State private var mode: Mode = .landlord
+    
 
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
 
@@ -69,8 +72,11 @@ private struct LandlordDashboardView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
+#if DEBUG
+debugPanel()
+    .padding(.horizontal, 16)
+    .padding(.top, 10)
+#endif
 
                     // Mode Toggle
                     HStack {
@@ -161,7 +167,71 @@ private struct LandlordDashboardView: View {
             }
         }
     }
+    
+    // MARK: - Debug Panel
+    private func debugPanel() -> some View {
+        VStack(spacing: 10) {
+            Button("DEBUG: Seed 1 Listing + 1 Conversation") {
+                DebugTools.seedListingAndConversation(context: viewContext)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+            .background(RoundedRectangle(cornerRadius: 12).fill(primary.opacity(0.12)))
 
+            Button("DEBUG: Create Notice (ALL) + Push Msg") {
+                DebugTools.createNoticeAll(context: viewContext)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+            .background(RoundedRectangle(cornerRadius: 12).fill(primary.opacity(0.12)))
+
+            Button("DEBUG: Create Schedule (ALL) + Push Msg") {
+                DebugTools.createScheduleAll(context: viewContext)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+            .background(RoundedRectangle(cornerRadius: 12).fill(primary.opacity(0.12)))
+
+            Button("DEBUG: Seed Tenant + Tenancy") {
+                DebugTools.seedTenantAndTenancy(context: viewContext)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+            .background(RoundedRectangle(cornerRadius: 12).fill(primary.opacity(0.12)))
+
+            Button("DEBUG: Tenant Visible Schedules") {
+                DebugTools.tenantVisibleSchedules(context: viewContext)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+            .background(RoundedRectangle(cornerRadius: 12).fill(primary.opacity(0.12)))
+
+            Button("DEBUG: Print Counts") {
+                DebugTools.printCounts(context: viewContext)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+            .background(RoundedRectangle(cornerRadius: 12).fill(primary.opacity(0.12)))
+
+            Button("DEBUG: Reset DB (Delete All)") {
+                DebugTools.resetDatabase(context: viewContext)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color.red.opacity(0.12)))
+            .foregroundStyle(.red)
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 14).fill(cardBg))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(border, lineWidth: 1))
+    }
     // MARK: - UI Helpers
     private var bg: Color {
         Color(uiColor: UIColor { tc in
@@ -290,6 +360,8 @@ private struct LandlordDashboardView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(border, lineWidth: 1))
     }
 }
+
+
 
 // MARK: - Small Models
 private struct MetricCard: Identifiable {

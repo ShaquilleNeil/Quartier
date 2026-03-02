@@ -1,16 +1,15 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24512" systemVersion="25C56" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
-    <entity name="Item" representedClassName="Item" syncable="YES" codeGenerationType="class">
-        <attribute name="timestamp" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
-    </entity>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24512" systemVersion="25D125" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
     <entity name="LDConversation" representedClassName="LDConversation" syncable="YES" codeGenerationType="class">
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="lastMessageAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="lastMessageText" optional="YES" attributeType="String"/>
-        <attribute name="listingId" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="tenantName" optional="YES" attributeType="String"/>
         <attribute name="unreadCount" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="listing" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="LDListing" inverseName="conversations" inverseEntity="LDListing"/>
+        <relationship name="messages" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDMessage" inverseName="conversation" inverseEntity="LDMessage"/>
+        <relationship name="tenant" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="LDTenant" inverseName="conversations" inverseEntity="LDTenant"/>
     </entity>
     <entity name="LDListing" representedClassName="LDListing" syncable="YES" codeGenerationType="class">
         <attribute name="baths" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
@@ -25,9 +24,13 @@
         <attribute name="title" optional="YES" attributeType="String"/>
         <attribute name="updatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="viewsCount" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="conversations" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDConversation" inverseName="listing" inverseEntity="LDConversation"/>
+        <relationship name="noticeTargets" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDNoticeTarget" inverseName="listing" inverseEntity="LDNoticeTarget"/>
+        <relationship name="scheduleTargets" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDScheduleTarget" inverseName="listing" inverseEntity="LDScheduleTarget"/>
+        <relationship name="tasks" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="LDTask" inverseName="listing" inverseEntity="LDTask"/>
+        <relationship name="tenancies" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDTenancy" inverseName="listing" inverseEntity="LDTenancy"/>
     </entity>
     <entity name="LDMessage" representedClassName="LDMessage" syncable="YES" codeGenerationType="class">
-        <attribute name="conversationId" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="fileName" optional="YES" attributeType="String"/>
         <attribute name="fileUrl" optional="YES" attributeType="String"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
@@ -36,6 +39,66 @@
         <attribute name="sentAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="text" optional="YES" attributeType="String"/>
         <attribute name="type" optional="YES" attributeType="String"/>
+        <relationship name="conversation" optional="YES" maxCount="1" deletionRule="Deny" destinationEntity="LDConversation" inverseName="messages" inverseEntity="LDConversation"/>
+        <relationship name="linkedNotice" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="LDNotice" inverseName="pushedMessages" inverseEntity="LDNotice"/>
+        <relationship name="linkedScheduleEvent" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="LDScheduleEvent" inverseName="pushedMessages" inverseEntity="LDScheduleEvent"/>
+    </entity>
+    <entity name="LDNotice" representedClassName="LDNotice" syncable="YES" codeGenerationType="class">
+        <attribute name="body" optional="YES" attributeType="String"/>
+        <attribute name="category" optional="YES" attributeType="String"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="expireAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="lastModifiedBy" optional="YES" attributeType="String"/>
+        <attribute name="priority" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="publishAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="syncStatus" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="title" optional="YES" attributeType="String"/>
+        <attribute name="updatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="version" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="pushedMessages" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="LDMessage" inverseName="linkedNotice" inverseEntity="LDMessage"/>
+        <relationship name="targets" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDNoticeTarget" inverseName="notice" inverseEntity="LDNoticeTarget"/>
+    </entity>
+    <entity name="LDNoticeTarget" representedClassName="LDNoticeTarget" syncable="YES" codeGenerationType="class">
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="scopeType" optional="YES" attributeType="String"/>
+        <relationship name="listing" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="LDListing" inverseName="noticeTargets" inverseEntity="LDListing"/>
+        <relationship name="notice" optional="YES" maxCount="1" deletionRule="Deny" destinationEntity="LDNotice" inverseName="targets" inverseEntity="LDNotice"/>
+    </entity>
+    <entity name="LDScheduleAudience" representedClassName="LDScheduleAudience" syncable="YES" codeGenerationType="class">
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <relationship name="scheduleEvent" optional="YES" maxCount="1" deletionRule="Deny" destinationEntity="LDScheduleEvent" inverseName="audience" inverseEntity="LDScheduleEvent"/>
+        <relationship name="tenant" optional="YES" maxCount="1" deletionRule="Deny" destinationEntity="LDTenant" inverseName="scheduleAudience" inverseEntity="LDTenant"/>
+    </entity>
+    <entity name="LDScheduleEvent" representedClassName="LDScheduleEvent" syncable="YES" codeGenerationType="class">
+        <attribute name="allDay" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="endAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="lastModifiedBy" optional="YES" attributeType="String"/>
+        <attribute name="locationDetail" optional="YES" attributeType="String"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="recurrenceRule" optional="YES" attributeType="String"/>
+        <attribute name="startAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="syncStatus" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="tenantRelevant" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="timezone" optional="YES" attributeType="String"/>
+        <attribute name="title" optional="YES" attributeType="String"/>
+        <attribute name="updatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="version" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="visibility" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="audience" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDScheduleAudience" inverseName="scheduleEvent" inverseEntity="LDScheduleAudience"/>
+        <relationship name="pushedMessages" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="LDMessage" inverseName="linkedScheduleEvent" inverseEntity="LDMessage"/>
+        <relationship name="targets" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDScheduleTarget" inverseName="scheduleEvent" inverseEntity="LDScheduleTarget"/>
+    </entity>
+    <entity name="LDScheduleTarget" representedClassName="LDScheduleTarget" syncable="YES" codeGenerationType="class">
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="scopeType" optional="YES" attributeType="String"/>
+        <relationship name="listing" optional="YES" maxCount="1" deletionRule="Deny" destinationEntity="LDListing" inverseName="scheduleTargets" inverseEntity="LDListing"/>
+        <relationship name="scheduleEvent" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="LDScheduleEvent" inverseName="targets" inverseEntity="LDScheduleEvent"/>
     </entity>
     <entity name="LDTask" representedClassName="LDTask" syncable="YES" codeGenerationType="class">
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
@@ -44,5 +107,30 @@
         <attribute name="isDone" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="subtitle" optional="YES" attributeType="String"/>
         <attribute name="title" optional="YES" attributeType="String"/>
+        <relationship name="listing" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="LDListing" inverseName="tasks" inverseEntity="LDListing"/>
+        <relationship name="tenant" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="LDTenant" inverseName="tasks" inverseEntity="LDTenant"/>
+    </entity>
+    <entity name="LDTenancy" representedClassName="LDTenancy" syncable="YES" codeGenerationType="class">
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="endDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="startDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="status" optional="YES" attributeType="String"/>
+        <attribute name="updatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <relationship name="listing" optional="YES" maxCount="1" deletionRule="Deny" destinationEntity="LDListing" inverseName="tenancies" inverseEntity="LDListing"/>
+        <relationship name="tenant" optional="YES" maxCount="1" deletionRule="Deny" destinationEntity="LDTenant" inverseName="tenancies" inverseEntity="LDTenant"/>
+    </entity>
+    <entity name="LDTenant" representedClassName="LDTenant" syncable="YES" codeGenerationType="class">
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="displayName" optional="YES" attributeType="String"/>
+        <attribute name="email" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="phone" optional="YES" attributeType="String"/>
+        <attribute name="preferredLanguages" optional="YES" attributeType="String"/>
+        <attribute name="updatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <relationship name="conversations" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="LDConversation" inverseName="tenant" inverseEntity="LDConversation"/>
+        <relationship name="scheduleAudience" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDScheduleAudience" inverseName="tenant" inverseEntity="LDScheduleAudience"/>
+        <relationship name="tasks" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="LDTask" inverseName="tenant" inverseEntity="LDTask"/>
+        <relationship name="tenancies" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDTenancy" inverseName="tenant" inverseEntity="LDTenancy"/>
     </entity>
 </model>
