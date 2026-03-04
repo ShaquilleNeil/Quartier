@@ -21,6 +21,7 @@ private struct LandlordDashboardView: View {
     enum Mode: String, CaseIterable { case landlord = "Landlord", tenant = "Tenant" }
 
     @State private var mode: Mode = .landlord
+    @State private var showNewNotice = false
     
 
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
@@ -65,12 +66,16 @@ private struct LandlordDashboardView: View {
 
                         Spacer()
 
-                        Button {} label: {
-                            Image(systemName: "bell")
+                        Button { showNewNotice = true } label: {
+                            Image(systemName: "bell.badge")
                                 .font(.system(size: 20, weight: .semibold))
                                 .frame(width: 44, height: 44)
                         }
                         .buttonStyle(.plain)
+                    }
+                    .sheet(isPresented: $showNewNotice) {
+                        NewNoticeView()
+                            .environment(\.managedObjectContext, viewContext)
                     }
 #if DEBUG
 debugPanel()

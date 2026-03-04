@@ -5,6 +5,7 @@
 //  Created by Shaquille O Neil on 2026-01-29.
 //
 import Foundation
+import Combine
 import FirebaseAuth
 
 class AuthService: ObservableObject {

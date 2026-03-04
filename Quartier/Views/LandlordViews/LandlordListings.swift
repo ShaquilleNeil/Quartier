@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct LandlordListings: View {
     var body: some View {
@@ -13,20 +14,31 @@ struct LandlordListings: View {
     }
 }
 
-private struct Listing: Identifiable {
-    enum Status { case published, draft, rented }
+private enum ListingDisplayStatus: String, CaseIterable {
+    case published = "Published"
+    case draft = "Draft"
+    case rented = "Rented"
+}
 
-    let id = UUID()
+private struct ListingDisplay: Identifiable {
+    let id: UUID
     let title: String
     let cityLine: String
     let priceLine: String
     let views: Int
     let leads: Int
-    let status: Status
-    let imageName: String // 用系统占位，不用网络
+    let status: ListingDisplayStatus
+    let imageName: String
 }
 
 private struct MyListingsView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \LDListing.updatedAt, ascending: false)],
+        animation: .default
+    )
+    private var ldListings: FetchedResults<LDListing>
 
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
 
@@ -40,11 +52,34 @@ private struct MyListingsView: View {
         case rented = "Rented"
     }
 
-    private let listings: [Listing] = [
-        .init(title: "217 Rue Saint-Denis", cityLine: "Plateau • Montréal", priceLine: "$2,400/mo • 2 bds • 1 ba", views: 128, leads: 14, status: .published, imageName: "building.2.fill"),
-        .init(title: "890 Rue Peel", cityLine: "Downtown • Montréal", priceLine: "$1,950/mo • 1 bd • 1 ba", views: 63, leads: 6, status: .draft, imageName: "building.fill"),
-        .init(title: "12 Ave du Mont-Royal", cityLine: "Mile End • Montréal", priceLine: "$3,150/mo • 3 bds • 2 ba", views: 201, leads: 22, status: .rented, imageName: "house.fill"),
-    ]
+    private static func statusFromLD(_ raw: String?) -> ListingDisplayStatus {
+        switch raw?.lowercased() {
+        case "active": return .published
+        case "draft": return .draft
+        case "rented", "inactive": return .rented
+        default: return .published
+        }
+    }
+
+    private var displayListings: [ListingDisplay] {
+        ldListings.compactMap { ld -> ListingDisplay? in
+            guard let id = ld.id else { return nil }
+            let beds = Int(ld.beds)
+            let baths = ld.baths
+            let price = ld.priceMonthly
+            let priceLine = String(format: "$%.0f/mo • %d bds • %.0f ba", price, beds, baths)
+            return ListingDisplay(
+                id: id,
+                title: ld.title ?? "Untitled",
+                cityLine: ld.cityLine ?? "",
+                priceLine: priceLine,
+                views: Int(ld.viewsCount),
+                leads: Int(ld.leadsCount),
+                status: Self.statusFromLD(ld.status),
+                imageName: ld.coverImageName ?? "building.2.fill"
+            )
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -114,8 +149,12 @@ private struct MyListingsView: View {
 
                     // Cards
                     VStack(spacing: 12) {
-                        ForEach(filteredListings) { item in
-                            listingCard(item)
+                        if filteredListings.isEmpty {
+                            emptyState
+                        } else {
+                            ForEach(filteredListings) { item in
+                                listingCard(item)
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -141,22 +180,35 @@ private struct MyListingsView: View {
         }
     }
 
-    private var filteredListings: [Listing] {
-        let base: [Listing] = {
-            switch selectedFilter {
-            case .all: return listings
-            case .published: return listings.filter { $0.status == .published }
-            case .drafts: return listings.filter { $0.status == .draft }
-            case .rented: return listings.filter { $0.status == .rented }
-            }
-        }()
-
-        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return base }
-        let key = searchText.lowercased()
+    private var filteredListings: [ListingDisplay] {
+        var base: [ListingDisplay]
+        switch selectedFilter {
+        case .all: base = displayListings
+        case .published: base = displayListings.filter { $0.status == .published }
+        case .drafts: base = displayListings.filter { $0.status == .draft }
+        case .rented: base = displayListings.filter { $0.status == .rented }
+        }
+        let key = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if key.isEmpty { return base }
         return base.filter { $0.title.lowercased().contains(key) || $0.cityLine.lowercased().contains(key) }
     }
 
-    private func listingCard(_ item: Listing) -> some View {
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "building.2.crop.circle")
+                .font(.system(size: 48))
+                .foregroundStyle(primary.opacity(0.5))
+            Text("No listings yet")
+                .font(.system(size: 18, weight: .semibold))
+            Text("Tap + to add your first listing")
+                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+    }
+
+    private func listingCard(_ item: ListingDisplay) -> some View {
         let isDraft = item.status == .draft
         let isRented = item.status == .rented
 
@@ -212,7 +264,7 @@ private struct MyListingsView: View {
         .opacity(isRented ? 0.75 : 1)
     }
 
-    private func statusBadge(_ s: Listing.Status) -> some View {
+    private func statusBadge(_ s: ListingDisplayStatus) -> some View {
         let (text, bg, fg): (String, Color, Color) = {
             switch s {
             case .published: return ("Published", Color.green.opacity(0.15), .green)
@@ -245,4 +297,5 @@ private struct MyListingsView: View {
 
 #Preview {
     LandlordListings()
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }

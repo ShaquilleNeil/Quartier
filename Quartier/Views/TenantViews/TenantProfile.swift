@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct TenantProfile: View {
     @EnvironmentObject var authService: AuthService

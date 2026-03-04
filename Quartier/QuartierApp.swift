@@ -6,20 +6,15 @@
 //
 
 import SwiftUI
-<<<<<<< HEAD
 import CoreData
-import Firebase
-=======
 import FirebaseCore
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
-        // init firebase
         FirebaseApp.configure()
         return true
     }
 }
->>>>>>> origin/main
 
 @main
 struct QuartierApp: App {
@@ -30,6 +25,7 @@ struct QuartierApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(authService)
+                .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
         }
     }
 }

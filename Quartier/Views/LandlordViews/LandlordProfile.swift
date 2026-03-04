@@ -3,12 +3,8 @@
 //  Quartier
 //
 
-//
-//  LandlordProfile.swift
-//  Quartier
-//
-
 import SwiftUI
+import FirebaseAuth
 
 struct LandlordProfile: View {
     @EnvironmentObject var authService: AuthService

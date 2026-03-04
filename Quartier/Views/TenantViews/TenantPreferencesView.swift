@@ -5,6 +5,7 @@
 
 import SwiftUI
 import FirebaseFirestore // Need this to save!
+import FirebaseAuth
 
 struct TenantPreferencesView: View {
     @Environment(\.dismiss) var dismiss
