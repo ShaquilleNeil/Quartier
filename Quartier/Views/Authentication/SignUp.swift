@@ -8,7 +8,6 @@
 import SwiftUI
 
 struct SignUp: View {
-    // MARK: - Properties
     @Environment(\.dismiss) var dismiss
 
     @State private var selectedRole: UserType = .tenant
@@ -17,7 +16,6 @@ struct SignUp: View {
     @State private var password = ""
     @State private var isPasswordVisible = false
     
-    // MARK: - Body
     var body: some View {
         NavigationStack {
             ZStack {
@@ -31,7 +29,7 @@ struct SignUp: View {
                         VStack(spacing: 8) {
                             Text("Create Account")
                                 .font(.system(size: 32, weight: .bold))
-                                .foregroundColor(Color(hex: "111827")) // Gray-900
+                                .foregroundColor(Color(hex: "111827"))
                             
                             Text("Join the Quartier community today.")
                                 .font(.system(size: 16))
@@ -41,7 +39,6 @@ struct SignUp: View {
                         .padding(.bottom, 24)
                         
                         // Role Selection
-                        // Note: .capitalized makes the enum case ("tenant") look nice ("Tenant")
                         Picker("Role", selection: $selectedRole) {
                             ForEach(UserType.allCases, id: \.self) { role in
                                 Text(role.rawValue.capitalized).tag(role)
@@ -53,7 +50,6 @@ struct SignUp: View {
                         // Form Fields
                         VStack(spacing: 16) {
                             
-                            // Full Name
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Full Name")
                                     .font(.system(size: 14, weight: .medium))
@@ -63,7 +59,6 @@ struct SignUp: View {
                                     .modifier(QuartierFieldModifier())
                             }
                             
-                            // Email
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Email Address")
                                     .font(.system(size: 14, weight: .medium))
@@ -75,7 +70,6 @@ struct SignUp: View {
                                     .modifier(QuartierFieldModifier())
                             }
                             
-                            // Password
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Password")
                                     .font(.system(size: 14, weight: .medium))
@@ -149,14 +143,18 @@ struct SignUp: View {
         }
     }
     
-    // MARK: - Actions
     func handleSignUp() {
-        // TODO: Backend Integration
-        // 1. Create User object based on `selectedRole`
-        // 2. Call AuthService.register(email: email, password: password, userData: user)
-        print("Registering as \(selectedRole.rawValue) with email: \(email)")
+        // call auth service
+        AuthService.shared.register(email: email, password: password, role: selectedRole.rawValue) { success in
+            if success {
+                print("signed up as \(selectedRole.rawValue)")
+            } else {
+                print("sign up failed")
+            }
+        }
     }
 }
+
 #Preview {
     SignUp()
 }
