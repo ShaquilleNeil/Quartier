@@ -44,6 +44,8 @@ private struct MyListingsView: View {
 
     @State private var searchText: String = ""
     @State private var selectedFilter: Filter = .all
+    @State private var showListingForm = false
+    @State private var listingToEdit: LDListing?
 
     enum Filter: String, CaseIterable {
         case all = "All"
@@ -153,7 +155,26 @@ private struct MyListingsView: View {
                             emptyState
                         } else {
                             ForEach(filteredListings) { item in
-                                listingCard(item)
+                                Button {
+                                    listingToEdit = ldListings.first { $0.id == item.id }
+                                    showListingForm = true
+                                } label: {
+                                    listingCard(item)
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button {
+                                        listingToEdit = ldListings.first { $0.id == item.id }
+                                        showListingForm = true
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
+                                    }
+                                    Button(role: .destructive) {
+                                        deleteListing(id: item.id)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                     }
@@ -166,7 +187,8 @@ private struct MyListingsView: View {
 
             // FAB
             Button {
-                // TODO: add listing action
+                listingToEdit = nil
+                showListingForm = true
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 18, weight: .bold))
@@ -177,6 +199,10 @@ private struct MyListingsView: View {
             }
             .padding(.trailing, 18)
             .padding(.bottom, 18)
+        }
+        .sheet(isPresented: $showListingForm) {
+            NewListingView(existingListing: listingToEdit)
+                .environment(\.managedObjectContext, viewContext)
         }
     }
 
@@ -191,6 +217,12 @@ private struct MyListingsView: View {
         let key = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if key.isEmpty { return base }
         return base.filter { $0.title.lowercased().contains(key) || $0.cityLine.lowercased().contains(key) }
+    }
+
+    private func deleteListing(id: UUID) {
+        guard let listing = ldListings.first(where: { $0.id == id }) else { return }
+        viewContext.delete(listing)
+        try? viewContext.save()
     }
 
     private var emptyState: some View {
