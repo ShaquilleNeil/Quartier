@@ -6,9 +6,12 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 struct TenantHome: View {
     @State private var showingPreferences = false
+    @State private var listings: [Listing] = []
+    @EnvironmentObject var firebase: FirebaseManager
     
     var body: some View {
         NavigationStack {
@@ -23,16 +26,8 @@ struct TenantHome: View {
                     ]
 
                     LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(1...10, id: \.self) { apartment in
-                            ApartmentCard(
-                                imageName: "apartment1",
-                                isNew: true,
-                                rating: 4.8,
-                                beds: 2,
-                                baths: 1,
-                                sqft: 950,
-                                price: 1400.00,
-                                location: "Montreal"
+                        ForEach(firebase.allListings) { apartment in
+                            ApartmentCard(listing: apartment
                             )
                         }
                     }
@@ -40,7 +35,9 @@ struct TenantHome: View {
 
                 }
             }
-           
+            .onAppear {
+                firebase.fetchAllListings()
+            }
             .padding()
             // 3. Attach the sheet to show the preferences
             .sheet(isPresented: $showingPreferences) {

@@ -15,8 +15,26 @@ class CoreDataManager: ObservableObject {
     @Published var preferences: TPreferences? = nil
     @Published var listings: [LDListing] = []
     
+    private let sync = FirebaseSync(collectionPath: "listings")
+    
+    //prevent echo-loop: remote -> coreData -> saveContext -> remote
+    private var isApplyingRemoteChanges = false
+    
     init(_ context: NSManagedObjectContext) {
         loadPreferences(context)
+        
+        sync.startListening(
+            context: context
+        ) { [weak self] applying in
+            DispatchQueue.main.async {
+                self?.isApplyingRemoteChanges = applying
+            }
+        } onRemoteApplied: { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.loadListings(context)
+            }
+        }
     }
     
     // MARK: Load
@@ -116,16 +134,16 @@ class CoreDataManager: ObservableObject {
         entity.price = listing.price
         entity.bedrooms = Int16(listing.bedrooms)
         entity.bathrooms = Int16(listing.bathrooms)
+        entity.squareFeet = Int32(listing.squareFeet)
         entity.status = listing.status.rawValue
+        entity.latitude = listing.latitude ?? 0
+        entity.longitude = listing.longitude ?? 0
         entity.rules = listing.rules
         entity.address = listing.address
         entity.isRented = listing.isRented
         entity.updatedAt = Date()
         
-        if let data = try? JSONEncoder().encode(listing.amenities),
-           let jsonString = String(data: data, encoding: .utf8){
-            entity.amenities = jsonString
-        }
+        entity.amenities = listing.amenities as NSObject
             
         if let oldImages = entity.draftImages as? Set<DraftImage> {
             for image in oldImages {
@@ -146,6 +164,43 @@ class CoreDataManager: ObservableObject {
         
         saveContext(context)
         
+        if !isApplyingRemoteChanges {
+            sync.pushUpsert(listing: entity)
+        }
+        
+        loadListings(context)
+        
+    }
+    
+    
+    
+    func deleteDraft(
+        listingID: UUID,
+        context: NSManagedObjectContext,
+        pushRemote: Bool = true
+    ) {
+
+        let request = LDListing.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", listingID as CVarArg)
+
+        do {
+            let drafts = try context.fetch(request)
+
+            for draft in drafts {
+                context.delete(draft)
+            }
+
+            try context.save()
+
+            if pushRemote && !isApplyingRemoteChanges {
+                sync.pushDelete(listingID: listingID)
+            }
+
+            loadListings(context)
+
+        } catch {
+            print("Failed to delete draft:", error)
+        }
     }
     
     

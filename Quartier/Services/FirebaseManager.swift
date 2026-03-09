@@ -15,6 +15,7 @@ class FirebaseManager: ObservableObject {
     @Published var currentUser: User? = nil
     @Published var firebaseListings: [RemoteListing] = []
     private let storage = Storage.storage()
+    @Published var allListings: [Listing] = []
     
     // save to db
     func saveUser(uid: String, email: String, role: String, isRenting: Bool = false, completion: @escaping (Bool) -> Void) {
@@ -48,10 +49,19 @@ class FirebaseManager: ObservableObject {
                 let roleString = data["role"] as? String ?? "tenant"
                 let isRenting = data["isRenting"] as? Bool ?? false
                 let isActive = data["isActive"] as? Bool ?? true
-                let createdAtTimestamp = data["createdAt"] as? TimeInterval
-                let createdAt: Date = createdAtTimestamp != nil ? Date(timeIntervalSince1970: createdAtTimestamp!) : Date()
+
+                let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+
                 let role: UserType = roleString.lowercased() == "landlord" ? .landlord : .tenant
-                let user = User(id: id, email: email, role: role, createdAt: createdAt, isActive: isActive, isRenting: isRenting)
+
+                let user = User(
+                    id: id,
+                    email: email,
+                    role: role,
+                    createdAt: createdAt,
+                    isActive: isActive,
+                    isRenting: isRenting
+                )
                 DispatchQueue.main.async {
                     self.currentUser = user
                 }
@@ -78,28 +88,84 @@ class FirebaseManager: ObservableObject {
                 
                 let listings = documents.compactMap { doc -> RemoteListing? in
                     let data = doc.data()
-                     
+
+                    let location = data["location"] as? GeoPoint
+                    let latitude = location?.latitude ?? 0
+                    let longitude = location?.longitude ?? 0
+
+                    let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+                    let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
+
                     return RemoteListing(
-                                      id: doc.documentID,
-                                      buildingId: data["buildingId"] as? String ?? "",
-                                      landlordId: data["landLordId"] as? String ?? "",
-                                      price: (data["price"] as? NSNumber)?.doubleValue ?? 0,
-                                      bedrooms: data["bedrooms"] as? Int ?? 0,
-                                      bathrooms: data["bathrooms"] as? Int ?? 0,
-                                      amenities: data["amenities"] as? [String] ?? [],
-                                      status: data["status"] as? String ?? "",
-                                      rules: data["rules"] as? String ?? "",
-                                      imageURLs: data["images"] as? [String] ?? [],
-                                      address: data["address"] as? String ?? "",
-                                      isRented: data["isRented"] as? Bool ?? false
-                                  )
-                    
-                    
+                        id: doc.documentID,
+                        buildingId: data["buildingId"] as? String ?? "",
+                        landlordId: data["landLordId"] as? String ?? "",
+                        price: (data["price"] as? NSNumber)?.doubleValue ?? 0,
+                        bedrooms: data["bedrooms"] as? Int ?? 0,
+                        bathrooms: data["bathrooms"] as? Int ?? 0,
+                        squareFeet: data["squareFeet"] as? Int ?? 0,
+                        amenities: data["amenities"] as? [String] ?? [],
+                        rules: data["rules"] as? String ?? "",
+                        imageURLs: data["images"] as? [String] ?? [],
+                        address: data["address"] as? String ?? "",
+                        latitude: latitude,
+                        longitude: longitude,
+                        status: data["status"] as? String ?? "",
+                        isRented: data["isRented"] as? Bool ?? false,
+                        createdAt: createdAt,
+                        updatedAt: updatedAt
+                    )
                 }
                 
                 DispatchQueue.main.async {
                     self.firebaseListings = listings
                 }
+            }
+    }
+    
+    func fetchAllListings(){
+        db.collection("listings")
+            .getDocuments { snapshot, error in
+                
+                guard let documents = snapshot?.documents else { return }
+                
+                var fetchedListings: [Listing] = []
+                
+                for doc in documents {
+                    let data = doc.data()
+                    
+                    var listing = Listing(
+                        buildingID: "",
+                        landLordId: "",
+                        price: 0,
+                        bedrooms: 0,
+                        bathrooms: 0
+                    )
+                    
+                    listing.buildingID = data["buildingId"] as? String ?? ""
+                    listing.landLordId = data["landLordId"] as? String ?? ""
+                    listing.price = data["price"] as? Double ?? 0
+                    listing.bedrooms = data["bedrooms"] as? Int ?? 0
+                    listing.bathrooms = data["bathrooms"] as? Int ?? 0
+                    listing.address = data["address"] as? String ?? ""
+                    listing.squareFeet = data["squareFeet"] as? Int ?? 0
+                    listing.isRented = data["isRented"] as? Bool ?? false
+                    
+                    listing.amenities = data["amenities"] as? [String] ?? []
+                    listing.rules = data["rules"] as? String ?? ""
+                    
+                    if let location = data["location"] as? GeoPoint {
+                        listing.latitude = location.latitude
+                        listing.longitude = location.longitude
+                    }
+                    
+                    // image URLs from Firestore
+                    listing.existingImageURLs = data["images"] as? [String] ?? []
+                    
+                    fetchedListings.append(listing)
+                }
+                
+                self.allListings = fetchedListings
             }
     }
     
@@ -128,13 +194,31 @@ class FirebaseManager: ObservableObject {
     }
     
     
-    func saveListing(listingId: UUID, buildingId: String, landLordId: String, price: Double, bedrooms: Int, bathrooms: Int, amenities: [String], status: ListingStatus, rules: String, imageURLs: [String], address: String, isRented: Bool ){
+    func saveListing(
+        listingId: UUID,
+        buildingId: String,
+        landLordId: String,
+        price: Double,
+        squareFeet: Int,
+        latitude: Double,
+        longitude: Double,
+        bedrooms: Int,
+        bathrooms: Int,
+        amenities: [String],
+        status: ListingStatus,
+        rules: String,
+        imageURLs: [String],
+        address: String,
+        isRented: Bool
+    )
+    {
         
         let listingData: [String: Any] = [
             "id": listingId.uuidString,
             "buildingId": buildingId,
             "landLordId": landLordId,
             "price": price,
+            "squareFeet": squareFeet,
             "bedrooms": bedrooms,
             "bathrooms": bathrooms,
             "amenities": amenities,
@@ -142,7 +226,10 @@ class FirebaseManager: ObservableObject {
             "rules": rules,
             "images": imageURLs,
             "address": address,
-            "isRented": isRented
+            "location": GeoPoint(latitude: latitude, longitude: longitude),
+            "isRented": isRented,
+            "createdAt": FieldValue.serverTimestamp(),
+            "updatedAt": FieldValue.serverTimestamp()
         ]
         
         db.collection("listings").document(listingId.uuidString).setData(listingData){
@@ -155,6 +242,7 @@ class FirebaseManager: ObservableObject {
         }
     }
     
+
     
     
     func updateListing(
@@ -167,19 +255,26 @@ class FirebaseManager: ObservableObject {
         rules: String,
         address: String,
         isRented: Bool,
-        imageURLs: [String]
-    ) {
+        imageURLs: [String],
+        squareFeet: Int,
+        latitude: Double,
+        longitude: Double
+    )
+    {
 
         let updatedData: [String: Any] = [
             "buildingId": buildingId,
             "price": price,
+            "squareFeet": squareFeet,
             "bedrooms": bedrooms,
             "bathrooms": bathrooms,
             "amenities": amenities,
             "rules": rules,
             "address": address,
+            "location": GeoPoint(latitude: latitude, longitude: longitude),
             "isRented": isRented,
-            "images": imageURLs
+            "images": imageURLs,
+            "updatedAt": FieldValue.serverTimestamp()
         ]
 
         db.collection("listings")

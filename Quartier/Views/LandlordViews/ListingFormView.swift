@@ -12,6 +12,7 @@ import Combine
 import PhotosUI
 import FirebaseAuth
 import SDWebImageSwiftUI
+import CoreLocation
 
 struct ListingFormView: View {
 
@@ -36,7 +37,13 @@ struct ListingFormView: View {
             _listing = State(initialValue: existing)
             isEditing = true
         } else {
-            _listing = State(initialValue: Listing())
+            _listing = State(initialValue: Listing(
+                buildingID: "",
+                landLordId: "",
+                price: 0,
+                bedrooms: 0,
+                bathrooms: 0
+            ))
             isEditing = false
         }
     }
@@ -45,89 +52,11 @@ struct ListingFormView: View {
         ScrollView {
             VStack(spacing: 20) {
                 
-                PhotosPicker(
-                    selection: $selectedItems,
-                    maxSelectionCount: 10,
-                    matching: .images
-                ){
-                    Text("Select Photos")
-                        .padding(10)
-                        .background{
-                            RoundedRectangle(cornerRadius: 15)
-                                .fill(.thinMaterial)
-                                .stroke(Color(.secondaryLabel), lineWidth: 1)
-                              
-                        }
-                }.onChange(of: selectedItems) { newItems in
-                    for item in newItems {
-                        Task {
-                            if let data = try? await item.loadTransferable(type: Data.self),
-                               let uiImage = UIImage(data: data) {
-                                listing.images.append(uiImage)
-                            }
-                        }
-                    }
-                }
+                photoPicker
                 
+                imagePreviewRow
                 
-                if !listing.existingImageURLs.isEmpty || !listing.images.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-
-                            // Existing remote images
-                            ForEach(Array(listing.existingImageURLs.enumerated()), id: \.offset) { index, urlString in
-                                if let url = URL(string: urlString) {
-                                    ZStack(alignment: .topTrailing) {
-
-                                        WebImage(url: url)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 110, height: 110)
-                                            .clipped()
-                                            .cornerRadius(12)
-
-                                        if index == 0 && listing.images.isEmpty {
-                                            Text("Cover")
-                                                .font(.caption2.bold())
-                                                .padding(6)
-                                                .background(.black.opacity(0.7))
-                                                .foregroundColor(.white)
-                                                .cornerRadius(8)
-                                                .padding(6)
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Newly selected images
-                            ForEach(Array(listing.images.enumerated()), id: \.offset) { index, image in
-                                ZStack(alignment: .topTrailing) {
-
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 110, height: 110)
-                                        .clipped()
-                                        .cornerRadius(12)
-                                        .onTapGesture {
-                                            setAsCover(index: index)
-                                        }
-
-                                    if listing.existingImageURLs.isEmpty && index == 0 {
-                                        Text("Cover")
-                                            .font(.caption2.bold())
-                                            .padding(6)
-                                            .background(.black.opacity(0.7))
-                                            .foregroundColor(.white)
-                                            .cornerRadius(8)
-                                            .padding(6)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                // BUILDING
+              // BUILDING
                 TextField("Building ID", text: $listing.buildingID)
                     .modifier(FormCard())
                 
@@ -144,6 +73,10 @@ struct ListingFormView: View {
                     StepperCard(title: "Bedrooms", value: $listing.bedrooms)
                     StepperCard(title: "Bathrooms", value: $listing.bathrooms)
                 }
+                
+                TextField("Square Feet", value: $listing.squareFeet, format: .number)
+                    .modifier(FormCard())
+                    .keyboardType(.numberPad)
                 
                 // AMENITIES
                 VStack(alignment: .leading, spacing: 12) {
@@ -218,6 +151,79 @@ struct ListingFormView: View {
         let selected = listing.images.remove(at: index)
         listing.images.insert(selected, at: 0)
     }
+    
+    func geocodeAddress(_ address: String) async throws -> CLLocationCoordinate2D {
+        let geocoder = CLGeocoder()
+        let placemarks = try await geocoder.geocodeAddressString(address)
+
+        guard let location = placemarks.first?.location else {
+            throw NSError(domain: "GeocodeError", code: 0)
+        }
+
+        return location.coordinate
+    }
+    
+    
+    
+    private var photoPicker: some View {
+        PhotosPicker(
+            selection: $selectedItems,
+            maxSelectionCount: 10,
+            matching: .images
+        ){
+            Text("Select Photos")
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 15)
+                        .fill(.thinMaterial)
+                        .stroke(Color(.secondaryLabel), lineWidth: 1)
+                )
+        }
+        .onChange(of: selectedItems) { newItems in
+            for item in newItems {
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let uiImage = UIImage(data: data) {
+                        listing.images.append(uiImage)
+                    }
+                }
+            }
+        }
+    }
+
+    private var imagePreviewRow: some View {
+        Group {
+            if !listing.existingImageURLs.isEmpty || !listing.images.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+
+                        ForEach(Array(listing.existingImageURLs.enumerated()), id: \.offset) { index, urlString in
+                            if let url = URL(string: urlString) {
+                                WebImage(url: url)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 110, height: 110)
+                                    .clipped()
+                                    .cornerRadius(12)
+                            }
+                        }
+
+                        ForEach(Array(listing.images.enumerated()), id: \.offset) { index, image in
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 110, height: 110)
+                                .clipped()
+                                .cornerRadius(12)
+                                .onTapGesture {
+                                    setAsCover(index: index)
+                                }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 struct AmenityToggleRow: View {
@@ -288,15 +294,26 @@ struct FormCard: ViewModifier {
 }
 
 extension ListingFormView {
-    
+
     func publishListing() {
         listing.landLordId = firebase.currentUser?.id ?? ""
         isPublishing = true
+
+        let wasDraft = (listing.status == .draft)
+        listing.status = .published
 
         if isEditing {
 
             Task {
                 do {
+
+                    // GEOCODE ADDRESS
+                    if listing.latitude == nil || listing.longitude == nil {
+                        let coord = try await geocodeAddress(listing.address)
+                        listing.latitude = coord.latitude
+                        listing.longitude = coord.longitude
+                    }
+
                     let newURLs = try await firebase.uploadListingImages(
                         listingId: listing.listingID,
                         images: listing.images
@@ -304,20 +321,36 @@ extension ListingFormView {
 
                     let allURLs = listing.existingImageURLs + newURLs
 
-                    firebase.updateListing(
-                        listingId: listing.listingID.uuidString,
+                    firebase.saveListing(
+                        listingId: listing.listingID,
                         buildingId: listing.buildingID,
+                        landLordId: listing.landLordId,
                         price: listing.price,
+                        squareFeet: listing.squareFeet,
+                        latitude: listing.latitude ?? 0,
+                        longitude: listing.longitude ?? 0,
                         bedrooms: listing.bedrooms,
                         bathrooms: listing.bathrooms,
                         amenities: listing.amenities,
+                        status: listing.status,
                         rules: listing.rules,
+                        imageURLs: allURLs,
                         address: listing.address,
-                        isRented: listing.isRented,
-                        imageURLs: allURLs
+                        isRented: listing.isRented
                     )
 
                     await MainActor.run {
+                        if wasDraft {
+                            coreDataManager.deleteDraft(
+                                listingID: listing.listingID,
+                                context: viewContext,
+                                pushRemote: false
+                            )
+                        }
+
+                        firebase.fetchListingsLandord()
+                        coreDataManager.deleteDraft(listingID: listing.listingID, context: viewContext)
+
                         isPublishing = false
                         showPublishSuccess = true
                     }
@@ -333,9 +366,17 @@ extension ListingFormView {
             return
         }
 
-        // NEW LISTING FLOW (your existing upload + save)
+        // NEW LISTING FLOW
         Task {
             do {
+
+                // GEOCODE ADDRESS
+                if listing.latitude == nil || listing.longitude == nil {
+                    let coord = try await geocodeAddress(listing.address)
+                    listing.latitude = coord.latitude
+                    listing.longitude = coord.longitude
+                }
+
                 let urls = try await firebase.uploadListingImages(
                     listingId: listing.listingID,
                     images: listing.images
@@ -346,6 +387,9 @@ extension ListingFormView {
                     buildingId: listing.buildingID,
                     landLordId: listing.landLordId,
                     price: listing.price,
+                    squareFeet: listing.squareFeet,
+                    latitude: listing.latitude ?? 0,
+                    longitude: listing.longitude ?? 0,
                     bedrooms: listing.bedrooms,
                     bathrooms: listing.bathrooms,
                     amenities: listing.amenities,
@@ -357,6 +401,16 @@ extension ListingFormView {
                 )
 
                 await MainActor.run {
+                    if wasDraft {
+                        coreDataManager.deleteDraft(
+                            listingID: listing.listingID,
+                            context: viewContext,
+                            pushRemote: false
+                        )
+                    }
+
+                    firebase.fetchListingsLandord()
+
                     isPublishing = false
                     showPublishSuccess = true
                 }
@@ -369,13 +423,14 @@ extension ListingFormView {
             }
         }
     }
-    
-    
+
     func saveDraftListing() {
         listing.landLordId = firebase.currentUser?.id ?? ""
         coreDataManager.saveDraft(from: listing, context: viewContext)
     }
 }
+
+
 
 
 #Preview {

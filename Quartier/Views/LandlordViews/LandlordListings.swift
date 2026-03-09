@@ -113,30 +113,27 @@ private struct MyListingsView: View {
     
 
     private func convertDraftToListing(_ draft: LDListing) -> Listing {
-        let decodedAmenities: [String] = {
-            guard let json = draft.amenities,
-                  let data = json.data(using: .utf8),
-                  let decoded = try? JSONDecoder().decode([String].self, from: data)
-            else { return [] }
-            return decoded
-        }()
-        
-        
-        return Listing(
+
+        let decodedAmenities = draft.amenities as? [String] ?? []
+
+        var listing = Listing(
             listingID: draft.id ?? UUID(),
             buildingID: draft.buildingID ?? "",
             landLordId: draft.landLordID ?? "",
             price: draft.price,
             bedrooms: Int(draft.bedrooms),
-            bathrooms: Int(draft.bathrooms),
-            amenities: decodedAmenities,
-            status: .draft,
-            rules: draft.rules ?? "",
-            images: convertDraftImages(draft),
-            address: draft.address ?? "",
-            isRented: draft.isRented,
-            existingImageURLs: []
+            bathrooms: Int(draft.bathrooms)
         )
+
+        listing.amenities = decodedAmenities
+        listing.status = .draft
+        listing.rules = draft.rules ?? ""
+        listing.images = convertDraftImages(draft)
+        listing.address = draft.address ?? ""
+        listing.isRented = draft.isRented
+        listing.existingImageURLs = []
+
+        return listing
     }
     
     private func convertDraftImages(_ draft: LDListing) -> [UIImage] {
@@ -345,21 +342,25 @@ private struct MyListingsView: View {
     }
 
     private func convertToEditableListing(_ remote: RemoteListing) -> Listing {
-        Listing(
+
+        var listing = Listing(
             listingID: UUID(uuidString: remote.id) ?? UUID(),
             buildingID: remote.buildingId,
             landLordId: remote.landlordId,
             price: remote.price,
             bedrooms: remote.bedrooms,
-            bathrooms: remote.bathrooms,
-            amenities: remote.amenities,
-            status: ListingStatus(rawValue: remote.status) ?? .published,
-            rules: remote.rules,
-            images: [],
-            address: remote.address,
-            isRented: remote.isRented,
-            existingImageURLs: remote.imageURLs
+            bathrooms: remote.bathrooms
         )
+
+        listing.amenities = remote.amenities
+        listing.status = ListingStatus(rawValue: remote.status) ?? .published
+        listing.rules = remote.rules
+        listing.images = []
+        listing.address = remote.address
+        listing.isRented = remote.isRented
+        listing.existingImageURLs = remote.imageURLs
+
+        return listing
     }
     
     private func statusColor(for status: String) -> Color {
