@@ -5,12 +5,17 @@
 
 import SwiftUI
 import FirebaseFirestore // Need this to save!
+import FirebaseAuth
 
 struct TenantPreferencesView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authService: AuthService
     @Environment(\.managedObjectContext) private var context
     @EnvironmentObject private var holder: CoreDataManager
+    @EnvironmentObject private var firebase: FirebaseManager
+    
+//   let currentUserId = Auth.auth().currentUser?.uid
+
     
     // MARK: - Form State
     @State private var locationQuery = ""
@@ -21,6 +26,7 @@ struct TenantPreferencesView: View {
     @State private var fullyFurnished = false
     @State private var parkingIncluded = false
     @State private var userloggedin = true
+    @State private var goToHome = false
     
     
     let bedroomOptions = ["Studio", "1", "2", "3+"]
@@ -224,6 +230,7 @@ struct TenantPreferencesView: View {
                     VStack(spacing: 12) {
                         Button(action: {
                             holder.savePreferences(
+//                                userId: currentUserUUID,
                                 locationQuery: locationQuery,
                                 budgetMin: budgetMin,
                                 budgetMax: budgetMax,
@@ -234,7 +241,10 @@ struct TenantPreferencesView: View {
                                 context
                             )
                             // Optionally dismiss after saving
-                            dismiss()
+//                            dismiss()
+                            //navigate t
+                            goToHome = true
+                            firebase.updateUserHasCompletedPreferences()
                         }) {
                             Text("Save & Continue")
                                 .font(.system(size: 18, weight: .bold))
@@ -250,7 +260,15 @@ struct TenantPreferencesView: View {
                     .background(Rectangle().fill(.ultraThinMaterial).ignoresSafeArea())
                 }
             }
+            .navigationDestination(isPresented: $goToHome){
+                TenantTabView()
+            }
         }.onAppear {
+//            guard let userId = Auth.auth().currentUser?.uid,
+//                  let uuid = UUID(uuidString: userId) else { return }
+            
+            holder.loadPreferences(context)
+
             if let saved = holder.preferences {
                 locationQuery = saved.locationQuery ?? ""
                 budgetMin = saved.budgetMin
@@ -335,3 +353,4 @@ struct TenantPreferencesView: View {
         .environmentObject(firebase)
         .environmentObject(auth)
 }
+

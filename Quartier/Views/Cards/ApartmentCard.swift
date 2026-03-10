@@ -6,9 +6,11 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 struct ApartmentCard: View {
     let listing: Listing
+    @EnvironmentObject private var firebase: FirebaseManager
     
     var body: some View {
         // This view is a reusable card; do not embed a NavigationStack here to avoid nested stacks.
@@ -40,7 +42,9 @@ struct ApartmentCard: View {
                     // Favorite button
                     HStack {
                         Spacer()
-                        Button(action: {}) {
+                        Button(action: {
+                            firebase.saveFavorite(listingId: listing.id.uuidString)
+                        }) {
                             Image(systemName: "heart.fill")
                                 .foregroundColor(.white)
                                 .padding(10)
@@ -126,3 +130,4 @@ struct ApartmentCard: View {
 
     return ApartmentDetailView(listing: mock)
 }
+

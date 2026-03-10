@@ -84,4 +84,5 @@ struct SearchBar: View {
 }
 #Preview {
     TenantHome()
+        .environmentObject(FirebaseManager())
 }

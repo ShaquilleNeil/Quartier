@@ -9,6 +9,7 @@ import Foundation
 import FirebaseFirestore
 import Combine
 import FirebaseStorage
+import FirebaseAuth
 
 class FirebaseManager: ObservableObject {
     private let db = Firestore.firestore()
@@ -16,6 +17,7 @@ class FirebaseManager: ObservableObject {
     @Published var firebaseListings: [RemoteListing] = []
     private let storage = Storage.storage()
     @Published var allListings: [Listing] = []
+    @Published var favoriteIds: Set<String> = []
     
     // save to db
     func saveUser(uid: String, email: String, role: String, isRenting: Bool = false, completion: @escaping (Bool) -> Void) {
@@ -243,7 +245,29 @@ class FirebaseManager: ObservableObject {
     }
     
 
+    func updateUser(uid: String, email: String, role: String, isRenting: Bool, hasCompletedPreferences: Bool ){
+        db.collection("users")
+            .document(uid)
+            .updateData([
+                "id": uid,
+                "email": email,
+                "role": role,
+                "isRenting": isRenting,
+                "hasCompletedPreferences": hasCompletedPreferences
+            ])
+    }
     
+    
+    func updateUserHasCompletedPreferences() {
+
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+
+        db.collection("users")
+            .document(uid)
+            .updateData([
+                "hasCompletedPreferences": true
+            ])
+    }
     
     func updateListing(
         listingId: String,
@@ -287,6 +311,89 @@ class FirebaseManager: ObservableObject {
                 }
             }
     }
+    
+    func saveFavorite(listingId: String){
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        
+        let ref = db.collection("users")
+            .document(uid)
+            .collection("favorites")
+            .document(listingId)
+        
+        ref.getDocument {
+            snapshot, _ in
+            if snapshot?.exists == true {
+                ref.delete()
+            } else {
+                ref.setData( [
+                    "listingId": listingId,
+                    "createdAt": FieldValue.serverTimestamp()
+                ])
+            }
+        }
+    }
+    
+    func fetchUserFavorites(){
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        
+        db.collection("users")
+            .document(uid)
+            .collection("favorites")
+            .getDocuments {
+                snapshot, _ in
+                
+                let ids = snapshot?.documents.map { $0.documentID } ?? []
+                
+                DispatchQueue.main.async {
+                    self.favoriteIds = Set(ids)
+                }
+            }
+    }
+    
+    //MARK: Save Preferences
+    
+    func savePreferencesFS(preferences: Preferences) {
+        
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+
+        db.collection("users")
+            .document(uid)
+            .collection("preferences")
+            .document("tenant")
+            .setData([
+                "locationQuery": preferences.locationQuery,
+                "budgetMin": preferences.budgetMin,
+                "budgetMax": preferences.budgetMax,
+                "selectedBedroom": preferences.selectedBedroom,
+                "petsAllowed": preferences.petsAllowed,
+                "fullyFurnished": preferences.fullyFurnished,
+                "parkingIncluded": preferences.parkingIncluded,
+                "createdAt": FieldValue.serverTimestamp(),
+                "updatedAt": FieldValue.serverTimestamp()
+            ])
+    }
+    
+    
+    func updatePreferencesFS(preferences: Preferences) {
+        
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+
+        db.collection("users")
+            .document(uid)
+            .collection("preferences")
+            .document("tenant")
+            .updateData([
+                "locationQuery": preferences.locationQuery,
+                "budgetMin": preferences.budgetMin,
+                "budgetMax": preferences.budgetMax,
+                "selectedBedroom": preferences.selectedBedroom,
+                "petsAllowed": preferences.petsAllowed,
+                "fullyFurnished": preferences.fullyFurnished,
+                "parkingIncluded": preferences.parkingIncluded,
+                "updatedAt": FieldValue.serverTimestamp()
+            ])
+    }
+    
     
     
   

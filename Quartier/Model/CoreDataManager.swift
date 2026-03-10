@@ -9,6 +9,8 @@ import Foundation
 import CoreData
 import Combine
 internal import UIKit
+import FirebaseAuth
+import FirebaseFirestore
 
 class CoreDataManager: ObservableObject {
     
@@ -35,6 +37,8 @@ class CoreDataManager: ObservableObject {
                 self.loadListings(context)
             }
         }
+        
+        sync.startListeningPreferences(context: context)
     }
     
     // MARK: Load
@@ -81,9 +85,25 @@ class CoreDataManager: ObservableObject {
         }
     }
     
+    
+    
+    func fetchPreferences(for userId: UUID, context: NSManagedObjectContext) -> TPreferences? {
+        let request: NSFetchRequest<TPreferences> = TPreferences.fetchRequest()
+        request.predicate = NSPredicate(format: "currentUserUUID == %@", userId as CVarArg)
+        request.fetchLimit = 1
+        
+        do {
+            return try context.fetch(request).first
+        } catch {
+            print("Failed to fetch preferences:", error)
+            return nil
+        }
+    }
+    
     // MARK: Save / Update
     
     func savePreferences(
+        userId: UUID? = nil,
         locationQuery: String,
         budgetMin: Double,
         budgetMax: Double,
@@ -101,6 +121,7 @@ class CoreDataManager: ObservableObject {
             existing.createdAt = Date()
         }
         
+        existing.userID = userId
         existing.locationQuery = locationQuery
         existing.budgetMin = budgetMin
         existing.budgetMax = budgetMax
@@ -112,6 +133,27 @@ class CoreDataManager: ObservableObject {
         
         saveContext(context)
         loadPreferences(context)
+        
+        if !isApplyingRemoteChanges {
+            guard let uid = Auth.auth().currentUser?.uid else { return }
+
+            let data: [String: Any] = [
+                "locationQuery": locationQuery,
+                "budgetMin": budgetMin,
+                "budgetMax": budgetMax,
+                "selectedBedroom": selectedBedroom,
+                "petsAllowed": petsAllowed,
+                "fullyFurnished": fullyFurnished,
+                "parkingIncluded": parkingIncluded
+            ]
+
+            Firestore.firestore()
+                .collection("users")
+                .document(uid)
+                .collection("preferences")
+                .document("tenant")
+                .setData(data)
+        }
     }
     
     
