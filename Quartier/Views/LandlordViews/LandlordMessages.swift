@@ -77,7 +77,7 @@ private struct ConversationRow: View {
     let primary: Color
 
     private var title: String {
-        let listingTitle = conversation.listing?.title ?? "Listing"
+        let listingTitle = conversation.listing?.address ?? "Listing"
         if let name = conversation.tenantName, !name.isEmpty {
             return "\(name) · \(listingTitle)"
         }
@@ -152,7 +152,7 @@ struct LandlordChatView: View {
         if let name = conversation.tenantName, !name.isEmpty {
             return name
         }
-        return conversation.listing?.title ?? "Chat"
+        return conversation.listing?.address ?? "Chat"
     }
 
     var body: some View {
@@ -195,7 +195,7 @@ struct LandlordChatView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(chatTitle)
                     .font(.system(size: 16, weight: .bold))
-                if let listing = conversation.listing?.title {
+                if let listing = conversation.listing?.address {
                     Text(listing)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)

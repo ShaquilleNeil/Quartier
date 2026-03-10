@@ -8,6 +8,7 @@ import CoreData
 
 struct ContentView: View {
     @EnvironmentObject var authService: AuthService
+    @Environment(\.managedObjectContext) private var viewContext
 
     var body: some View {
         Group {
@@ -38,7 +39,11 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
-        .environmentObject(AuthService.shared)
+    let firebase = FirebaseManager()
+    let auth = AuthService(firebase: firebase)
+
+    return ContentView()
+        .environmentObject(firebase)
+        .environmentObject(auth)
         .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }

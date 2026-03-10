@@ -15,13 +15,12 @@ struct NewListingView: View {
     /// nil = create new; non-nil = edit existing
     var existingListing: LDListing?
 
-    @State private var title = ""
-    @State private var cityLine = ""
+    @State private var addressLine = ""
+    @State private var buildingIDLine = ""
     @State private var priceMonthlyText = ""
-    @State private var beds: Int16 = 1
-    @State private var baths: Double = 1
+    @State private var bedrooms: Int16 = 1
+    @State private var bathrooms: Int16 = 1
     @State private var statusRaw: String = "draft"
-    @State private var coverImageName = "building.2.fill"
     @State private var errorMessage: String?
     @State private var isSaving = false
 
@@ -31,26 +30,21 @@ struct NewListingView: View {
         ("active", "Published"),
         ("rented", "Rented"),
     ]
-    private let imageOptions = ["building.2.fill", "building.fill", "house.fill", "house"]
-
     var body: some View {
         NavigationStack {
             Form {
                 Section("Property") {
-                    TextField("Title / Address", text: $title)
+                    TextField("Address", text: $addressLine)
                         .textInputAutocapitalization(.words)
-                    TextField("City / Area", text: $cityLine)
+                    TextField("Building ID", text: $buildingIDLine)
                         .textInputAutocapitalization(.words)
                 }
 
                 Section("Rent & Details") {
                     TextField("Monthly rent ($)", text: $priceMonthlyText)
                         .keyboardType(.decimalPad)
-                    Stepper("Bedrooms: \(beds)", value: Binding(
-                        get: { Int(beds) },
-                        set: { beds = Int16(max(0, $0)) }
-                    ), in: 0...20)
-                    Stepper("Bathrooms: \(baths, specifier: "%.1f")", value: $baths, in: 0...10, step: 0.5)
+                    Stepper("Bedrooms: \(bedrooms)", value: $bedrooms, in: 0...20)
+                    Stepper("Bathrooms: \(bathrooms)", value: $bathrooms, in: 0...10)
                 }
 
                 Section("Status") {
@@ -60,18 +54,6 @@ struct NewListingView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                }
-
-                Section("Cover icon") {
-                    Picker("Icon", selection: $coverImageName) {
-                        ForEach(imageOptions, id: \.self) { name in
-                            HStack {
-                                Image(systemName: name)
-                                Text(name)
-                            }
-                            .tag(name)
-                        }
-                    }
                 }
 
                 if let err = errorMessage {
@@ -90,7 +72,7 @@ struct NewListingView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(existingListing == nil ? "Add" : "Save") { save() }
-                        .disabled(isSaving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(isSaving || addressLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
             .onAppear(perform: loadExisting)
@@ -99,13 +81,12 @@ struct NewListingView: View {
 
     private func loadExisting() {
         guard let listing = existingListing else { return }
-        title = listing.title ?? ""
-        cityLine = listing.cityLine ?? ""
-        priceMonthlyText = listing.priceMonthly > 0 ? String(format: "%.0f", listing.priceMonthly) : ""
-        beds = listing.beds
-        baths = listing.baths
+        addressLine = listing.address ?? ""
+        buildingIDLine = listing.buildingID ?? ""
+        priceMonthlyText = listing.price > 0 ? String(format: "%.0f", listing.price) : ""
+        bedrooms = listing.bedrooms
+        bathrooms = listing.bathrooms
         statusRaw = listing.status ?? "draft"
-        coverImageName = listing.coverImageName ?? "building.2.fill"
     }
 
     private func save() {
@@ -125,26 +106,22 @@ struct NewListingView: View {
 
         let now = Date()
         if let listing = existingListing {
-            listing.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-            listing.cityLine = cityLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            listing.priceMonthly = price
-            listing.beds = beds
-            listing.baths = baths
+            listing.address = addressLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            listing.buildingID = buildingIDLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            listing.price = price
+            listing.bedrooms = bedrooms
+            listing.bathrooms = bathrooms
             listing.status = statusRaw
-            listing.coverImageName = coverImageName
             listing.updatedAt = now
         } else {
             let listing = LDListing(context: viewContext)
             listing.id = UUID()
-            listing.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-            listing.cityLine = cityLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            listing.priceMonthly = price
-            listing.beds = beds
-            listing.baths = baths
+            listing.address = addressLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            listing.buildingID = buildingIDLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            listing.price = price
+            listing.bedrooms = bedrooms
+            listing.bathrooms = bathrooms
             listing.status = statusRaw
-            listing.coverImageName = coverImageName
-            listing.viewsCount = 0
-            listing.leadsCount = 0
             listing.createdAt = now
             listing.updatedAt = now
         }

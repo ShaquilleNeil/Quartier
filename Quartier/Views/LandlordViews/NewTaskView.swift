@@ -15,7 +15,7 @@ struct NewTaskView: View {
     var existingTask: LDTask?
 
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \LDListing.title, ascending: true)],
+        sortDescriptors: [NSSortDescriptor(keyPath: \LDListing.address, ascending: true)],
         animation: .default
     )
     private var allListings: FetchedResults<LDListing>
@@ -46,7 +46,7 @@ struct NewTaskView: View {
                     Picker("Listing", selection: $selectedListingID) {
                         Text("None").tag(nil as UUID?)
                         ForEach(allListings, id: \.objectID) { listing in
-                            Text(listing.title ?? "Untitled")
+                            Text(listing.address ?? "Untitled")
                                 .tag(listing.id as UUID?)
                         }
                     }
@@ -97,14 +97,14 @@ struct NewTaskView: View {
         isSaving = true
         defer { isSaving = false }
 
-        let listing = selectedListingID.flatMap { id in allListings.first { $0.id == id } }
-        let listingSet: NSSet? = listing.map { NSSet(object: $0) }
-
+        let listing: LDListing? = selectedListingID.flatMap { id in
+            allListings.first { $0.id == id }
+        }
         if let task = existingTask {
             task.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
             task.subtitle = subtitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : subtitle.trimmingCharacters(in: .whitespacesAndNewlines)
             task.dueDate = hasDueDate ? dueDate : nil
-            task.listing = listingSet
+            task.listing = listing.map { NSSet(object: $0) }
         } else {
             let task = LDTask(context: viewContext)
             task.id = UUID()
@@ -113,7 +113,7 @@ struct NewTaskView: View {
             task.dueDate = hasDueDate ? dueDate : nil
             task.isDone = false
             task.createdAt = Date()
-            task.listing = listingSet
+            task.listing = listing.map { NSSet(object: $0) }
         }
 
         do {

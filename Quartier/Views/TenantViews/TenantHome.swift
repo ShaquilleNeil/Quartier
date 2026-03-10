@@ -6,9 +6,12 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 struct TenantHome: View {
     @State private var showingPreferences = false
+    @State private var listings: [Listing] = []
+    @EnvironmentObject var firebase: FirebaseManager
     
     var body: some View {
         NavigationStack {
@@ -23,16 +26,8 @@ struct TenantHome: View {
                     ]
 
                     LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(1...10, id: \.self) { apartment in
-                            ApartmentCard(
-                                imageName: "apartment1",
-                                isNew: true,
-                                rating: 4.8,
-                                beds: 2,
-                                baths: 1,
-                                sqft: 950,
-                                price: 1400.00,
-                                location: "Montreal"
+                        ForEach(firebase.allListings) { apartment in
+                            ApartmentCard(listing: apartment
                             )
                         }
                     }
@@ -40,23 +35,8 @@ struct TenantHome: View {
 
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack{
-                        Button {
-                            // TODO: Open chat view
-                        } label: {
-                            Image(systemName: "bell.fill")
-                        }
-                        
-                        Button {
-                            // TODO: Open chat view
-                        } label: {
-                            Image(systemName: "bubble.left.and.bubble.right")
-                        }
-                    }
-                    
-                }
+            .onAppear {
+                firebase.fetchAllListings()
             }
             .padding()
             // 3. Attach the sheet to show the preferences
@@ -71,15 +51,15 @@ struct TenantHome: View {
 struct SearchBar: View {
     @State private var searchText: String = ""
     var onFilterTapped: () -> Void //
-
+    
     var body: some View {
         HStack(spacing: 12) {
-
+            
             // Search field
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.gray)
-
+                
                 TextField("Brooklyn, NY", text: $searchText)
                     .textInputAutocapitalization(.words)
                     .disableAutocorrection(true)
@@ -87,7 +67,7 @@ struct SearchBar: View {
             .padding(12)
             .background(Color(.systemGray6))
             .cornerRadius(14)
-
+            
             // Preference / filter button
             Button(action: onFilterTapped) {
                 Image(systemName: "slider.horizontal.3")
@@ -96,12 +76,13 @@ struct SearchBar: View {
                     .background(Color.blue)
                     .cornerRadius(14)
             }
+            .navigationBarBackButtonHidden(true)
+            .padding(.horizontal)
         }
-        .padding(.horizontal)
     }
+    
 }
-
-
 #Preview {
     TenantHome()
+        .environmentObject(FirebaseManager())
 }

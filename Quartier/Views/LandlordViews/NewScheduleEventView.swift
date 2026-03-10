@@ -13,7 +13,7 @@ struct NewScheduleEventView: View {
     @Environment(\.dismiss) private var dismiss
 
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \LDListing.title, ascending: true)],
+        sortDescriptors: [NSSortDescriptor(keyPath: \LDListing.address, ascending: true)],
         animation: .default
     )
     private var allListings: FetchedResults<LDListing>
@@ -65,10 +65,10 @@ struct NewScheduleEventView: View {
                                 }
                             } label: {
                                 HStack {
-                                    Text(listing.title ?? "Untitled")
+                                    Text(listing.address ?? "Untitled")
                                         .foregroundStyle(.primary)
-                                    if let city = listing.cityLine, !city.isEmpty {
-                                        Text("• \(city)")
+                                    if let b = listing.buildingID, !b.isEmpty {
+                                        Text("• \(b)")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }

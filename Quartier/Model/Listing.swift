@@ -1,0 +1,75 @@
+import Foundation
+internal import UIKit
+import Combine
+
+struct Listing: Identifiable, Codable {
+
+    var id: UUID { listingID }
+
+    var listingID: UUID = UUID()
+    var buildingID: String = ""
+    var landLordId: String = ""
+
+    var price: Double = 0
+    var bedrooms: Int = 0
+    var bathrooms: Int = 0
+    var squareFeet: Int = 0
+
+    var amenities: [String] = []
+    var rules: String = ""
+
+    var address: String = ""
+    var latitude: Double? = nil
+    var longitude: Double? = nil
+
+    var images: [UIImage] = []          // UI-only
+    var existingImageURLs: [String] = []
+
+    var status: ListingStatus = .draft
+    var isRented: Bool = false
+
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+
+    init(
+        listingID: UUID = UUID(),
+        buildingID: String,
+        landLordId: String,
+        price: Double,
+        bedrooms: Int,
+        bathrooms: Int
+    ) {
+        self.listingID = listingID
+        self.buildingID = buildingID
+        self.landLordId = landLordId
+        self.price = price
+        self.bedrooms = bedrooms
+        self.bathrooms = bathrooms
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case listingID
+        case buildingID
+        case landLordId
+        case price
+        case bedrooms
+        case bathrooms
+        case amenities
+        case rules
+        case address
+        case latitude
+        case longitude
+        case status
+        case isRented
+        case existingImageURLs
+        case createdAt
+        case updatedAt
+    }
+}
+
+enum ListingStatus: String, CaseIterable, Identifiable, Codable {
+    case draft
+    case published
+    
+    var id: String { rawValue }
+}

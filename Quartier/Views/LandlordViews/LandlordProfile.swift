@@ -231,6 +231,10 @@ private struct LandlordProfileView: View {
 }
 
 #Preview {
-    LandlordProfile()
-        .environmentObject(AuthService.shared)
+    let firebase = FirebaseManager()
+    let auth = AuthService(firebase: firebase)
+
+    return LandlordProfile()
+        .environmentObject(firebase)
+        .environmentObject(auth)
 }

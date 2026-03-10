@@ -11,7 +11,6 @@ import FirebaseCore
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
-        FirebaseApp.configure()
         return true
     }
 }
@@ -19,13 +18,31 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct QuartierApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
-    @StateObject var authService = AuthService.shared
+
+    @StateObject private var fireBase = FirebaseManager()
+    @StateObject private var authService: AuthService
+
+    let persistenceController = PersistenceController.shared
+    @StateObject private var coreDataManager: CoreDataManager
+
+    init() {
+        FirebaseApp.configure()
+        let ctx = PersistenceController.shared.container.viewContext
+        _coreDataManager = StateObject(wrappedValue: CoreDataManager(ctx))
+
+        let firebase = FirebaseManager()
+        _fireBase = StateObject(wrappedValue: firebase)
+        _authService = StateObject(wrappedValue: AuthService(firebase: firebase))
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(fireBase)
                 .environmentObject(authService)
-                .environment(\.managedObjectContext, PersistenceController.shared.container.viewContext)
+                .environmentObject(coreDataManager)
+                .environment(\.managedObjectContext,
+                              persistenceController.container.viewContext)
         }
     }
 }

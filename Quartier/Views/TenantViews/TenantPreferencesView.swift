@@ -9,7 +9,13 @@ import FirebaseAuth
 
 struct TenantPreferencesView: View {
     @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var authService: AuthService // Need this to get the user ID
+    @EnvironmentObject var authService: AuthService
+    @Environment(\.managedObjectContext) private var context
+    @EnvironmentObject private var holder: CoreDataManager
+    @EnvironmentObject private var firebase: FirebaseManager
+    
+//   let currentUserId = Auth.auth().currentUser?.uid
+
     
     // MARK: - Form State
     @State private var locationQuery = ""
@@ -19,6 +25,9 @@ struct TenantPreferencesView: View {
     @State private var petsAllowed = false
     @State private var fullyFurnished = false
     @State private var parkingIncluded = false
+    @State private var userloggedin = true
+    @State private var goToHome = false
+    
     
     let bedroomOptions = ["Studio", "1", "2", "3+"]
     
@@ -29,39 +38,53 @@ struct TenantPreferencesView: View {
                 
                 VStack(spacing: 0) {
                     
-                    // MARK: Header
-                    HStack {
-                        Button(action: { dismiss() }) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(Color(hex: "0d141b"))
-                                .padding(8)
-                        }
-                        Spacer()
-                        Text("Profile Setup")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                        Spacer()
-                        Color.clear.frame(width: 40, height: 40)
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
+                    
                     
                     ScrollView {
                         VStack(spacing: 32) {
                             
-                            // MARK: Title Section
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Find your perfect home")
-                                    .font(.system(size: 32, weight: .bold))
-                                    .foregroundColor(Color(hex: "0d141b"))
-                                    .fixedSize(horizontal: false, vertical: true)
-                                
-                                Text("Set your preferences so we can curate the best listings for you.")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(Color(hex: "64748b"))
+                            if(userloggedin == true){
+                                Text("Preferences")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            // MARK: Title Section
+                            if (userloggedin == false){
+                                // MARK: Header
+                                HStack {
+                                    Button(action: { dismiss() }) {
+                                        Image(systemName: "chevron.left")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundColor(Color(hex: "0d141b"))
+                                            .padding(8)
+                                    }
+                                    Spacer()
+                                    Text("Profile Setup")
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                    Spacer()
+                                    Color.clear.frame(width: 40, height: 40)
+                                }
+                                .padding(.horizontal)
+                                .padding(.vertical, 8)
+                                
+                                
+                                
+                                
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Find your perfect home")
+                                        .font(.system(size: 32, weight: .bold))
+                                        .foregroundColor(Color(hex: "0d141b"))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    
+                                    Text("Set your preferences so we can curate the best listings for you.")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(Color(hex: "64748b"))
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            
                             
                             // MARK: 1. Location Input
                             VStack(alignment: .leading, spacing: 12) {
@@ -205,7 +228,24 @@ struct TenantPreferencesView: View {
                 VStack {
                     Spacer()
                     VStack(spacing: 12) {
-                        Button(action: handleSavePreferences) {
+                        Button(action: {
+                            holder.savePreferences(
+//                                userId: currentUserUUID,
+                                locationQuery: locationQuery,
+                                budgetMin: budgetMin,
+                                budgetMax: budgetMax,
+                                selectedBedroom: selectedBedroom,
+                                petsAllowed: petsAllowed,
+                                fullyFurnished: fullyFurnished,
+                                parkingIncluded: parkingIncluded,
+                                context
+                            )
+                            // Optionally dismiss after saving
+//                            dismiss()
+                            //navigate t
+                            goToHome = true
+                            firebase.updateUserHasCompletedPreferences()
+                        }) {
                             Text("Save & Continue")
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(.white)
@@ -220,72 +260,97 @@ struct TenantPreferencesView: View {
                     .background(Rectangle().fill(.ultraThinMaterial).ignoresSafeArea())
                 }
             }
+            .navigationDestination(isPresented: $goToHome){
+                TenantTabView()
+            }
+        }.onAppear {
+//            guard let userId = Auth.auth().currentUser?.uid,
+//                  let uuid = UUID(uuidString: userId) else { return }
+            
+            holder.loadPreferences(context)
+
+            if let saved = holder.preferences {
+                locationQuery = saved.locationQuery ?? ""
+                budgetMin = saved.budgetMin
+                budgetMax = saved.budgetMax
+                selectedBedroom = saved.selectedBedroom ?? "Studio"
+                petsAllowed = saved.petsAllowed
+                fullyFurnished = saved.fullyFurnished
+                parkingIncluded = saved.parkingIncluded
+            }
         }
     }
     
+    //TODO: FIX
     // MARK: - Logic
-    func handleSavePreferences() {
-        guard let uid = authService.userSession?.uid else { return }
-        
-        // This packages up the exact settings they chose
-        let prefsData: [String: Any] = [
-            "hasCompletedPreferences": true,
-            "preferences": [
-                "location": locationQuery,
-                "budgetMin": budgetMin,
-                "budgetMax": budgetMax,
-                "bedrooms": selectedBedroom,
-                "petsAllowed": petsAllowed,
-                "fullyFurnished": fullyFurnished,
-                "parkingIncluded": parkingIncluded
-            ]
-        ]
-        
-        // Push to Firebase and dismiss the sheet/view!
-        Firestore.firestore().collection("users").document(uid).setData(prefsData, merge: true) { error in
-            if let error = error {
-                print("Failed to save: \(error)")
-            } else {
-                // If you want this to trigger ContentView routing, call authService.fetchUserData() here!
-                authService.fetchUserData()
-                dismiss()
-            }
-        }
-    }
-}
-
-// MARK: - Helper Components
-
-struct PreferenceToggleRow: View {
-    let icon: String
-    let iconColor: Color
-    let iconBg: Color
-    let title: String
-    @Binding var isOn: Bool
+    //    func handleSavePreferences() {
+    //        guard let uid = authService.userSession?.uid else { return }
+    //
+    //        // This packages up the exact settings they chose
+    //        let prefsData: [String: Any] = [
+    //            "hasCompletedPreferences": true,
+    //            "preferences": [
+    //                "location": locationQuery,
+    //                "budgetMin": budgetMin,
+    //                "budgetMax": budgetMax,
+    //                "bedrooms": selectedBedroom,
+    //                "petsAllowed": petsAllowed,
+    //                "fullyFurnished": fullyFurnished,
+    //                "parkingIncluded": parkingIncluded
+    //            ]
+    //        ]
+    //
+    //        // Push to Firebase and dismiss the sheet/view!
+    //        Firestore.firestore().collection("users").document(uid).setData(prefsData, merge: true) { error in
+    //            if let error = error {
+    //                print("Failed to save: \(error)")
+    //            } else {
+    //                // If you want this to trigger ContentView routing, call authService.fetchUserData() here!
+    //                authService.fetchUserData()
+    //                dismiss()
+    //            }
+    //        }
+    //    }
+    //
+    //}
     
-    var body: some View {
-        HStack {
-            ZStack {
-                Circle().fill(iconBg).frame(width: 40, height: 40)
-                Image(systemName: icon).foregroundColor(iconColor)
+    // MARK: - Helper Components
+    
+    struct PreferenceToggleRow: View {
+        let icon: String
+        let iconColor: Color
+        let iconBg: Color
+        let title: String
+        @Binding var isOn: Bool
+        
+        var body: some View {
+            HStack {
+                ZStack {
+                    Circle().fill(iconBg).frame(width: 40, height: 40)
+                    Image(systemName: icon).foregroundColor(iconColor)
+                }
+                .padding(.trailing, 8)
+                
+                Text(title)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(Color(hex: "0d141b"))
+                
+                Spacer()
+                
+                Toggle("", isOn: $isOn)
+                    .labelsHidden()
+                    .tint(Color.quartierBlue)
             }
-            .padding(.trailing, 8)
-            
-            Text(title)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(Color(hex: "0d141b"))
-            
-            Spacer()
-            
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .tint(Color.quartierBlue)
+            .padding(16)
         }
-        .padding(16)
     }
 }
-
 #Preview {
-    TenantPreferencesView()
-        .environmentObject(AuthService.shared)
+    let firebase = FirebaseManager()
+    let auth = AuthService(firebase: firebase)
+
+    return TenantPreferencesView()
+        .environmentObject(firebase)
+        .environmentObject(auth)
 }
+

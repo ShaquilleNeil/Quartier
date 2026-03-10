@@ -6,12 +6,35 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 struct TenantSaved: View {
+    @EnvironmentObject private var firebase: FirebaseManager
+    @State private var listings: [Listing] = []
+    
     var body: some View {
         VStack  {
-            Text("Screen that shows appartments that have been favorited")
-        }.padding()
+            ScrollView{
+                let columns = [
+                    GridItem(.flexible())
+                ]
+
+                LazyVGrid(columns: columns, spacing: 16) {
+                    ForEach(firebase.allListings) { apartment in
+                        ApartmentCard(listing: apartment
+                        )
+                    }
+                }
+                .padding(.top)
+
+            }
+        }
+        .onAppear {
+            firebase.fetchUserFavorites()
+        }
+        .padding()
+        
+            
       
     }
 }

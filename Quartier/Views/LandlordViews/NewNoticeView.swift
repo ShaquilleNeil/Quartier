@@ -13,7 +13,7 @@ struct NewNoticeView: View {
     @Environment(\.dismiss) private var dismiss
 
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \LDListing.title, ascending: true)],
+        sortDescriptors: [NSSortDescriptor(keyPath: \LDListing.address, ascending: true)],
         animation: .default
     )
     private var allListings: FetchedResults<LDListing>
@@ -54,13 +54,8 @@ struct NewNoticeView: View {
                                 }
                             } label: {
                                 HStack {
-                                    Text(listing.title ?? "Untitled")
+                                    Text(listing.address ?? "Untitled")
                                         .foregroundStyle(.primary)
-                                    if let city = listing.cityLine, !city.isEmpty {
-                                        Text("• \(city)")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
                                     Spacer()
                                     if selectedListingIDs.contains(id) {
                                         Image(systemName: "checkmark.circle.fill")
