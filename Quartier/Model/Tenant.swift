@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 
 struct Tenant: Identifiable, Equatable {
     let id: String              // same as User.id

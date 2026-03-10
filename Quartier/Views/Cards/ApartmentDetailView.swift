@@ -9,40 +9,31 @@ import SwiftUI
 import MapKit
 
 struct ApartmentDetailView: View {
-    @State var imageName: String = "photo.artframe"
-    @State var isNew: Bool = true
-    @State var rating: Double = 4.7
-    @State var beds: Int = 3
-    @State var baths: Int = 2
-    @State var sqft: Int = 1200
-    @State var price: Double = 1500.00
-    @State var location: String = "123 Maple St, Springfield, IL 62701"
-    @State var isExpanded: Bool = false
+
+    let listing: Listing
+    @State private var isExpanded = false
+
     var body: some View {
+
         ZStack(alignment: .top) {
 
-               headerImage
-               
+            headerImage
 
-               ScrollView {
+            ScrollView {
 
-                   VStack(spacing: 0) {
+                VStack(spacing: 0) {
 
-                       // pushes content below image
-                       Spacer()
-                           .frame(height: 235)
+                    Spacer()
+                        .frame(height: 235)
 
-                       contentCard
-                    
-                          
-                           
-                   }.padding()
-               }.padding()
-        }
-     
+                    contentCard
+                        .padding()
+
+                }.padding()
+            }
+        }.padding()
     }
-    
-    
+
     private func infoColumn(value: Int, title: String) -> some View {
         VStack {
             Text("\(value)")
@@ -54,222 +45,160 @@ struct ApartmentDetailView: View {
         }
         .frame(maxWidth: .infinity)
     }
-    
+
     private var apartmentCoordinate: CLLocationCoordinate2D {
-        // Default to a coordinate in Downtown Montreal
         CLLocationCoordinate2D(latitude: 45.5019, longitude: -73.5674)
     }
-    
+
     private var contentCard: some View {
-        VStack(alignment: .leading, spacing: 10){
-            
-            
-            Text("$\(price.formatted(.number.precision(.fractionLength(2))))/mo")
-                .font(Font.title.bold())
-            Text("Modern Loft in Downtown Montreal")
-            HStack{
+
+        VStack(alignment: .leading, spacing: 10) {
+
+            Text("$\(listing.price.formatted(.number.precision(.fractionLength(2))))/mo")
+                .font(.title.bold())
+
+            Text("Apartment Listing")
+
+            HStack {
                 Image(systemName: "location.viewfinder")
-                Text(location)
-                    .font(Font.subheadline.italic())
-                    .foregroundStyle(Color.gray)
+
+                Text(listing.address)
+                    .font(.subheadline.italic())
+                    .foregroundStyle(.gray)
             }
-            
+
             Divider()
+
             HStack(spacing: 0) {
 
-                infoColumn(value: beds, title: "BEDROOMS")
+                infoColumn(value: listing.bedrooms, title: "BEDROOMS")
 
                 Divider()
                     .frame(height: 50)
 
-                infoColumn(value: baths, title: "BATH")
+                infoColumn(value: listing.bathrooms, title: "BATH")
 
                 Divider()
                     .frame(height: 50)
 
-                infoColumn(value: sqft, title: "SQFT")
+                infoColumn(value: 0, title: "SQFT")
             }
             .padding()
 
             Divider()
+
             Spacer()
                 .frame(height: 20)
-            
+
             Text("About this place")
-                .font(Font.subheadline.bold())
-            
-            Text("This apartment offers a comfortable and well-designed living space with plenty of natural light and a practical layout suited for everyday living. The unit features spacious rooms, modern finishes, and convenient access to nearby shops, public transportation, and local amenities. Ideal for individuals or small families looking for a balanced combination of comfort, functionality, and location.")
+                .font(.subheadline.bold())
+
+            Text("This apartment offers a comfortable and well-designed living space with plenty of natural light and a practical layout suited for everyday living. The unit features spacious rooms, modern finishes, and convenient access to nearby shops, public transportation, and local amenities.")
                 .lineLimit(isExpanded ? nil : 3)
-                .font(Font.body)
-                .foregroundStyle(Color(.gray))
-            
+                .font(.body)
+                .foregroundStyle(.gray)
+
             Button(isExpanded ? "Read less" : "Read more") {
-                   isExpanded.toggle()
-               }
-               .font(.caption)
-               .foregroundStyle(.blue)
-            
+                isExpanded.toggle()
+            }
+            .font(.caption)
+            .foregroundStyle(.blue)
+
             Spacer()
                 .frame(height: 20)
-            HStack{
-                Text("Amenities")
-                    .font(Font.subheadline.bold())
-                
-                Spacer()
-                
-                Button(action: {}) {
-                    Text("view all")
-                }
-            }
-            Spacer()
-                .frame(height: 10)
-            
-            HStack{
-                Spacer()
-                    .frame(width: 20)
-               
-                VStack{
-                    Image(systemName: "wifi")
-                        .foregroundStyle(Color(.blue))
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(.blue).opacity(0.1))
-                                .frame(width: 40, height: 40)
-                        )
-                    Spacer()
-                        .frame(height: 20)
-                    Text("Free Wi-Fi")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                }
-                Spacer()
-               
-                VStack{
-                    Image(systemName: "snowflake.circle")
-                        .foregroundStyle(Color(.blue))
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(.blue).opacity(0.1))
-                                .frame(width: 40, height: 40)
-                        )
-                    Spacer()
-                        .frame(height: 20)
-                    Text("AC")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                }
-                Spacer()
-                
-                VStack{
-                    Image(systemName: "dumbbell")
-                        .foregroundStyle(Color(.blue))
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(.blue).opacity(0.1))
-                                .frame(width: 40, height: 40)
-                        )
-                    Spacer()
-                        .frame(height: 20)
-                    Text("Gym")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                }
-                Spacer()
-                
-                VStack{
-                    Image(systemName: "washer")
-                        .foregroundStyle(Color(.blue))
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(.blue).opacity(0.1))
-                                .frame(width: 40, height: 40)
-                        )
-                    Spacer()
-                        .frame(height: 20)
-                    Text("Laundry")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                }
-                Spacer()
-                    .frame(width: 20)
-             
-            }
-            
-            HStack{
-                Image(systemName: "person.fill")
-                    .clipped()
-                    .background(
-                        Circle()
-                            .fill(Color(.gray).opacity(0.2))
-                            .frame(width: 40, height: 40)
-                    )
-                Spacer()
-                    .frame(width: 20)
-                Text("George Games")
-                Spacer()
-                Button(action: {}){
-                    Text("View Profile")
-                        .font(Font.caption.bold())
-                        .background(
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(.gray.opacity(0.2))
-                                .frame(width: 95, height: 30)
-                            
-                        )
-                }
-            }.padding()
-            
-            Spacer()
-                .frame(height:20)
-            Text("Location")
-                .font(Font.subheadline.bold())
-            
-           MapCard(
-               coordinate: apartmentCoordinate,
-               locationName: location
-           )
-            
-            Spacer()
-            
-            
-            HStack{
-                Spacer()
-                Button(action: {}){
-                    Text("Contact Landlord")
-                        .foregroundStyle(Color.white)
-                        .font(Font.subheadline.bold())
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .frame(width: 300, height: 30)
-                        )
-                }
-                Spacer()
+
+            Text("Amenities")
+                .font(.subheadline.bold())
+
+            ForEach(listing.amenities, id: \.self) { amenity in
+                Text("• \(amenity)")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
             }
 
-           
-            
-            
-        }.padding()
-            .background(.background)
-            .clipShape(
+            Spacer()
+                .frame(height: 20)
+
+            Text("Location")
+                .font(.subheadline.bold())
+
+            MapCard(
+                coordinate: apartmentCoordinate,
+                locationName: listing.address
+            )
+
+            Spacer()
+
+            HStack {
+
+                Spacer()
+
+                Button(action: {}) {
+
+                    Text("Contact Landlord")
+                        .foregroundStyle(.white)
+                        .font(.subheadline.bold())
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                        )
+                }
+
+                Spacer()
+            }
+        }
+        .padding()
+        .background(.background)
+        .clipShape(
             RoundedRectangle(cornerRadius: 34)
         )
-            .offset(y: -30)
+        .offset(y: -30)
     }
 
+    private var headerImage: some View {
 
-}
+        Group {
 
-private var headerImage: some View {
-    Image("apartment1") // your asset name
-        .resizable()
-        .scaledToFill()
+            if let firstImage = listing.existingImageURLs.first,
+               let url = URL(string: firstImage) {
+
+                AsyncImage(url: url) { phase in
+
+                    switch phase {
+
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+
+                    case .failure(_):
+                        Image("apartment1")
+                            .resizable()
+                            .scaledToFill()
+
+                    case .empty:
+                        ProgressView()
+
+                    @unknown default:
+                        Image("apartment1")
+                            .resizable()
+                            .scaledToFill()
+                    }
+                }
+
+            } else {
+
+                Image("apartment1")
+                    .resizable()
+                    .scaledToFill()
+            }
+
+        }
         .frame(height: 320)
         .clipped()
         .ignoresSafeArea(edges: .top)
+    }
 }
-
-
 
 
 struct MapCard: View {
@@ -322,5 +251,24 @@ struct MapCard: View {
 
 
 #Preview {
-    ApartmentDetailView()
+    // Construct a mock Listing by decoding JSON, since Listing likely only exposes init(from:)
+    let json = """
+    {
+      "price": 1800,
+      "address": "123 Main St, Montreal, QC",
+      "bedrooms": 2,
+      "bathrooms": 1,
+      "amenities": ["Washer/Dryer", "Dishwasher", "Balcony"],
+      "existingImageURLs": [
+        "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2"
+      ]
+    }
+    """
+
+    let mock: Listing = {
+        let data = Data(json.utf8)
+        return try! JSONDecoder().decode(Listing.self, from: data)
+    }()
+
+    return ApartmentDetailView(listing: mock)
 }
