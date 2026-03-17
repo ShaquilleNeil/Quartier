@@ -6,13 +6,33 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct LandlordSchedule: View {
+    @Environment(\.managedObjectContext) private var viewContext
+
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \LDScheduleEvent.startAt, ascending: true)],
+        animation: .default
+    )
+    private var allEvents: FetchedResults<LDScheduleEvent>
+
     @State private var selectedDate: Date = Date()
+    @State private var showNewEvent = false
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
 
+    private var eventsOnSelectedDay: [LDScheduleEvent] {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: selectedDate)
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+        return allEvents.filter { event in
+            guard let s = event.startAt else { return false }
+            return s >= start && s < end
+        }
+    }
+
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottomTrailing) {
             bg.ignoresSafeArea()
 
             ScrollView {
@@ -38,24 +58,66 @@ struct LandlordSchedule: View {
                     }
                     .padding(.horizontal, 16)
 
-                    // Placeholder “Appointments”
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Appointments")
                             .font(.system(size: 18, weight: .bold))
 
-                        scheduleRow(title: "Viewing • Unit 4B", subtitle: "2:00 PM • Sarah Jenkins")
-                        scheduleRow(title: "Maintenance • Unit 12", subtitle: "4:30 PM • Plumbing")
+                        if eventsOnSelectedDay.isEmpty {
+                            Text("No events on this day")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 12)
+                        } else {
+                            ForEach(eventsOnSelectedDay, id: \.objectID) { event in
+                                scheduleRow(
+                                    title: event.title ?? "Event",
+                                    subtitle: formatEventTime(event)
+                                )
+                            }
+                        }
                     }
                     .padding(14)
                     .background(RoundedRectangle(cornerRadius: 18).fill(cardBg))
                     .overlay(RoundedRectangle(cornerRadius: 18).stroke(border, lineWidth: 1))
                     .padding(.horizontal, 16)
 
-                    Spacer(minLength: 20)
+                    Spacer(minLength: 80)
                 }
                 .padding(.bottom, 18)
             }
+
+            Button {
+                showNewEvent = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 56, height: 56)
+                    .background(Circle().fill(primary))
+                    .shadow(color: primary.opacity(0.25), radius: 12, x: 0, y: 6)
+            }
+            .padding(.trailing, 18)
+            .padding(.bottom, 18)
         }
+        .sheet(isPresented: $showNewEvent) {
+            NewScheduleEventView()
+                .environment(\.managedObjectContext, viewContext)
+        }
+    }
+
+    private func formatEventTime(_ event: LDScheduleEvent) -> String {
+        guard let start = event.startAt else { return "" }
+        if event.allDay {
+            return "All day"
+        }
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        var text = formatter.string(from: start)
+        if let end = event.endAt {
+            text += " – \(formatter.string(from: end))"
+        }
+        return text
     }
 
     private func scheduleRow(title: String, subtitle: String) -> some View {
@@ -89,4 +151,5 @@ struct LandlordSchedule: View {
 
 #Preview {
     LandlordSchedule()
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }

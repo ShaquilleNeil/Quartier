@@ -2,331 +2,64 @@
 //  LandlordMessages.swift
 //  Quartier
 //
-//  Created by Shaquille O Neil on 2026-01-29.
+//  Landlord: conversation list + chat with tenants. Data from Core Data (LDConversation, LDMessage).
 //
 
 import SwiftUI
+import CoreData
 
 struct LandlordMessages: View {
     var body: some View {
-        ContactChatView()
+        ConversationListView()
     }
 }
 
-private enum ChatItem: Identifiable {
-    case meta(String)
-    case day(String, primary: Bool)
-    case inText(text: String, time: String)
-    case inDoc(fileName: String, sizeText: String, time: String)
-    case outText(text: String, time: String, read: Bool)
-    case outImage(fileName: String, time: String, read: Bool)
-    case typing
+// MARK: - Conversation list (inbox)
+private struct ConversationListView: View {
+    @Environment(\.managedObjectContext) private var viewContext
 
-    var id: String {
-        switch self {
-        case .meta(let t): return "meta-\(t)"
-        case .day(let t, _): return "day-\(t)"
-        case .inText(let t, let time): return "in-\(time)-\(t.hashValue)"
-        case .inDoc(let f, _, let time): return "doc-\(time)-\(f)"
-        case .outText(let t, let time, _): return "out-\(time)-\(t.hashValue)"
-        case .outImage(let f, let time, _): return "img-\(time)-\(f)"
-        case .typing: return "typing"
-        }
-    }
-}
-
-private struct ContactChatView: View {
+    @FetchRequest(
+        sortDescriptors: [NSSortDescriptor(keyPath: \LDConversation.lastMessageAt, ascending: false)],
+        animation: .default
+    )
+    private var conversations: FetchedResults<LDConversation>
 
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
 
-    @State private var messageText: String = ""
-
-    private let items: [ChatItem] = [
-        .meta("Skyline Apartments - Unit 4B"),
-        .day("Yesterday", primary: false),
-        .inText(text: "Hi there! I've uploaded the lease agreement for your review. Let me know if you have any questions.", time: "4:12 PM"),
-        .inDoc(fileName: "Lease_Agreement_Unit4B.pdf", sizeText: "2.4 MB • PDF", time: "4:12 PM"),
-        .day("Today", primary: true),
-        .outText(text: "Thanks! I'll review it tonight and sign it by tomorrow morning.", time: "9:45 AM", read: true),
-        .outImage(fileName: "Photo_Deposit_Receipt.jpg", time: "10:02 AM", read: true),
-        .typing
-    ]
-
     var body: some View {
-        ZStack {
-            bg.ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                topBar
-                Divider().opacity(0.2)
-
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(items) { item in
-                            row(item)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                }
-
-                inputBar
-            }
-        }
-    }
-
-    private var topBar: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(primary.opacity(0.12))
-                .frame(width: 40, height: 40)
-                .overlay(Image(systemName: "person.fill").foregroundStyle(primary))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Marcus Thompson")
-                    .font(.system(size: 14, weight: .bold))
-                Text("PROPERTY MANAGER")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .tracking(1.2)
-            }
-
-            Spacer()
-
-            Button {} label: {
-                Circle()
-                    .fill(primary.opacity(0.10))
-                    .frame(width: 40, height: 40)
-                    .overlay(Image(systemName: "info.circle").foregroundStyle(primary))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(.ultraThinMaterial)
-    }
-
-    @ViewBuilder
-    private func row(_ item: ChatItem) -> some View {
-        switch item {
-        case .meta(let text):
-            HStack {
-                Spacer()
-                Text(text)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Capsule().fill(.thinMaterial))
-                    .overlay(Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1))
-                Spacer()
-            }
-            .padding(.vertical, 6)
-
-        case .day(let text, let isPrimary):
-            HStack(spacing: 12) {
-                Rectangle().fill(Color.primary.opacity(0.10)).frame(height: 1)
-                Text(text.uppercased())
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(isPrimary ? primary : .secondary)
-                    .tracking(2)
-                Rectangle().fill(Color.primary.opacity(0.10)).frame(height: 1)
-            }
-            .padding(.vertical, 10)
-
-        case .inText(let text, let time):
-            HStack(alignment: .bottom, spacing: 10) {
-                Circle()
-                    .fill(Color.gray.opacity(0.20))
-                    .frame(width: 32, height: 32)
-                    .overlay(Image(systemName: "person.fill").foregroundStyle(.secondary))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(text)
-                        .font(.system(size: 14))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(RoundedRectangle(cornerRadius: 14).fill(Color(uiColor: .secondarySystemBackground)))
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.06), lineWidth: 1))
-
-                    Text(time).font(.system(size: 10)).foregroundStyle(.secondary).padding(.leading, 6)
-                }
-
-                Spacer(minLength: 40)
-            }
-            .padding(.vertical, 2)
-
-        case .inDoc(let fileName, let sizeText, let time):
-            HStack(alignment: .bottom, spacing: 10) {
-                Circle()
-                    .fill(Color.gray.opacity(0.20))
-                    .frame(width: 32, height: 32)
-                    .overlay(Image(systemName: "person.fill").foregroundStyle(.secondary))
-
-                VStack(alignment: .leading, spacing: 6) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 12) {
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(primary.opacity(0.12))
-                                .frame(width: 40, height: 40)
-                                .overlay(Image(systemName: "doc.text").foregroundStyle(primary))
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(fileName).font(.system(size: 14, weight: .semibold)).lineLimit(1)
-                                Text(sizeText).font(.system(size: 11)).foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-                        }
-
-                        Button {} label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "arrow.down.circle")
-                                Text("Download").font(.system(size: 12, weight: .bold))
-                            }
-                            .foregroundStyle(primary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .tertiarySystemBackground)))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(12)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(Color(uiColor: .secondarySystemBackground)))
-                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.06), lineWidth: 1))
-
-                    Text(time).font(.system(size: 10)).foregroundStyle(.secondary).padding(.leading, 6)
-                }
-
-                Spacer(minLength: 40)
-            }
-            .padding(.vertical, 2)
-
-        case .outText(let text, let time, let read):
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(text)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(primary))
-                    .shadow(color: primary.opacity(0.18), radius: 8, x: 0, y: 4)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-
-                HStack(spacing: 6) {
-                    Text(time).font(.system(size: 10)).foregroundStyle(.secondary)
-                    if read {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(primary)
-                    }
-                }
-                .padding(.trailing, 6)
-            }
-            .padding(.vertical, 2)
-
-        case .outImage(let fileName, let time, let read):
-            VStack(alignment: .trailing, spacing: 6) {
-                VStack(spacing: 0) {
-                    Rectangle()
-                        .fill(primary.opacity(0.10))
-                        .frame(height: 160)
-                        .overlay(Image(systemName: "photo").font(.system(size: 28, weight: .semibold)).foregroundStyle(primary))
-
-                    HStack {
-                        Text(fileName)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
-                        Spacer()
-                    }
-                    .padding(10)
-                    .background(primary)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(primary, lineWidth: 2))
-                .shadow(color: primary.opacity(0.18), radius: 10, x: 0, y: 4)
-                .frame(maxWidth: 300, alignment: .trailing)
-
-                HStack(spacing: 6) {
-                    Text(time).font(.system(size: 10)).foregroundStyle(.secondary)
-                    if read {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(primary)
-                    }
-                }
-                .padding(.trailing, 6)
-            }
-            .padding(.vertical, 2)
-
-        case .typing:
-            HStack(spacing: 10) {
-                Circle()
-                    .fill(Color.gray.opacity(0.20))
-                    .frame(width: 32, height: 32)
-                    .overlay(Image(systemName: "person.fill").foregroundStyle(.secondary))
-
-                TypingDots()
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Capsule().fill(Color(uiColor: .secondarySystemBackground)))
-
-                Spacer(minLength: 40)
-            }
-            .opacity(0.75)
-            .padding(.vertical, 2)
-        }
-    }
-
-    private var inputBar: some View {
-        VStack(spacing: 0) {
-            Divider().opacity(0.2)
-
-            HStack(alignment: .bottom, spacing: 10) {
-                HStack(spacing: 6) {
-                    Button {} label: {
-                        Circle().fill(Color.primary.opacity(0.08))
-                            .frame(width: 40, height: 40)
-                            .overlay(Image(systemName: "plus.circle").foregroundStyle(.secondary))
-                    }.buttonStyle(.plain)
-
-                    Button {} label: {
-                        Circle().fill(Color.primary.opacity(0.08))
-                            .frame(width: 40, height: 40)
-                            .overlay(Image(systemName: "photo").foregroundStyle(.secondary))
-                    }.buttonStyle(.plain)
-                }
-
-                ZStack(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(Color(uiColor: .secondarySystemBackground))
-
-                    TextEditor(text: $messageText)
-                        .font(.system(size: 14))
-                        .scrollContentBackground(.hidden)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .frame(minHeight: 40, maxHeight: 120)
-
-                    if messageText.isEmpty {
-                        Text("Type a message...")
+        NavigationStack {
+            ZStack {
+                bg.ignoresSafeArea()
+                if conversations.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "message")
+                            .font(.system(size: 48))
+                            .foregroundStyle(primary.opacity(0.5))
+                        Text("No conversations yet")
+                            .font(.system(size: 18, weight: .semibold))
+                        Text("Conversations appear when tenants reach out about a listing.")
                             .font(.system(size: 14))
-                            .foregroundStyle(.secondary.opacity(0.7))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 14)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(conversations, id: \.objectID) { conv in
+                            NavigationLink {
+                                LandlordChatView(conversation: conv)
+                                    .environment(\.managedObjectContext, viewContext)
+                            } label: {
+                                ConversationRow(conversation: conv, primary: primary)
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
                 }
-
-                Button {
-                    messageText = ""
-                } label: {
-                    Circle().fill(primary)
-                        .frame(width: 40, height: 40)
-                        .overlay(Image(systemName: "paperplane.fill").foregroundStyle(.white))
-                        .shadow(color: primary.opacity(0.22), radius: 10, x: 0, y: 4)
-                }
-                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 18)
-            .background(.ultraThinMaterial)
+            .navigationTitle("Messages")
         }
     }
 
@@ -339,34 +72,285 @@ private struct ContactChatView: View {
     }
 }
 
-private struct TypingDots: View {
-    @State private var animate = false
+private struct ConversationRow: View {
+    let conversation: LDConversation
+    let primary: Color
+
+    private var title: String {
+        let listingTitle = conversation.listing?.address ?? "Listing"
+        if let name = conversation.tenantName, !name.isEmpty {
+            return "\(name) · \(listingTitle)"
+        }
+        return listingTitle
+    }
 
     var body: some View {
-        HStack(spacing: 6) {
-            dot(delay: 0.0)
-            dot(delay: 0.2)
-            dot(delay: 0.4)
+        HStack(spacing: 12) {
+            Circle()
+                .fill(primary.opacity(0.12))
+                .frame(width: 48, height: 48)
+                .overlay(Image(systemName: "person.fill").foregroundStyle(primary))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .lineLimit(1)
+                Text(conversation.lastMessageText ?? "No messages")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer()
+
+            if let date = conversation.lastMessageAt {
+                Text(relativeTime(date))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            if conversation.unreadCount > 0 {
+                Text("\(conversation.unreadCount)")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(primary))
+            }
         }
+        .padding(.vertical, 8)
+    }
+
+    private func relativeTime(_ date: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(date) {
+            let f = DateFormatter()
+            f.timeStyle = .short
+            return f.string(from: date)
+        }
+        if cal.isDateInYesterday(date) { return "Yesterday" }
+        let f = DateFormatter()
+        f.dateStyle = .short
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Chat view (one conversation)
+struct LandlordChatView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+    let conversation: LDConversation
+
+    @State private var messageText = ""
+
+    private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
+
+    private var sortedMessages: [LDMessage] {
+        let set = conversation.messages as? Set<LDMessage> ?? []
+        return set.sorted { ($0.sentAt ?? .distantPast) < ($1.sentAt ?? .distantPast) }
+    }
+
+    private var chatTitle: String {
+        if let name = conversation.tenantName, !name.isEmpty {
+            return name
+        }
+        return conversation.listing?.address ?? "Chat"
+    }
+
+    var body: some View {
+        ZStack {
+            bg.ignoresSafeArea()
+            VStack(spacing: 0) {
+                chatTopBar
+                Divider().opacity(0.2)
+
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(Array(sortedMessages.enumerated()), id: \.offset) { _, msg in
+                                messageRow(msg)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                    }
+                    .onChange(of: sortedMessages.count) { _, count in
+                        if count > 0 {
+                            withAnimation {
+                                proxy.scrollTo(count - 1, anchor: .bottom)
+                            }
+                        }
+                    }
+                }
+
+                inputBar
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            animate = true
+            markConversationRead()
         }
     }
 
-    private func dot(delay: Double) -> some View {
-        Circle()
-            .fill(Color.secondary.opacity(0.6))
-            .frame(width: 6, height: 6)
-            .offset(y: animate ? -4 : 0)
-            .animation(
-                .easeInOut(duration: 0.6)
-                    .repeatForever(autoreverses: true)
-                    .delay(delay),
-                value: animate
-            )
+    private var chatTopBar: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(chatTitle)
+                    .font(.system(size: 16, weight: .bold))
+                if let listing = conversation.listing?.address {
+                    Text(listing)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial)
+    }
+
+    @ViewBuilder
+    private func messageRow(_ msg: LDMessage) -> some View {
+        let isSystem = (msg.type == LDMessageType.systemNotice.rawValue || msg.type == LDMessageType.systemSchedule.rawValue)
+        let isOut = msg.isFromLandlord
+
+        if isSystem {
+            HStack {
+                Spacer()
+                Text(msg.text ?? "")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color(uiColor: .tertiarySystemBackground)))
+                Spacer()
+            }
+            .padding(.vertical, 4)
+        } else if isOut {
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(msg.text ?? "")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 14).fill(primary))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                if let sentAt = msg.sentAt {
+                    Text(formatTime(sentAt))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.vertical, 2)
+        } else {
+            HStack(alignment: .bottom, spacing: 10) {
+                Circle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 32, height: 32)
+                    .overlay(Image(systemName: "person.fill").foregroundStyle(.secondary))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(msg.text ?? "")
+                        .font(.system(size: 14))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 14).fill(Color(uiColor: .secondarySystemBackground)))
+                    if let sentAt = msg.sentAt {
+                        Text(formatTime(sentAt))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 6)
+                    }
+                }
+                Spacer(minLength: 40)
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private var inputBar: some View {
+        VStack(spacing: 0) {
+            Divider().opacity(0.2)
+            HStack(alignment: .bottom, spacing: 10) {
+                ZStack(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(Color(uiColor: .secondarySystemBackground))
+                    TextEditor(text: $messageText)
+                        .font(.system(size: 14))
+                        .scrollContentBackground(.hidden)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .frame(minHeight: 40, maxHeight: 120)
+                    if messageText.isEmpty {
+                        Text("Type a message...")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary.opacity(0.7))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                    }
+                }
+                Button {
+                    sendMessage()
+                } label: {
+                    Circle()
+                        .fill(primary)
+                        .frame(width: 40, height: 40)
+                        .overlay(Image(systemName: "paperplane.fill").foregroundStyle(.white))
+                }
+                .buttonStyle(.plain)
+                .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 18)
+            .background(.ultraThinMaterial)
+        }
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.timeStyle = .short
+        return f.string(from: date)
+    }
+
+    private func sendMessage() {
+        let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+
+        let msg = LDMessage(context: viewContext)
+        msg.id = UUID()
+        msg.text = text
+        msg.sentAt = Date()
+        msg.type = LDMessageType.text.rawValue
+        msg.isFromLandlord = true
+        msg.isRead = false
+        msg.conversation = conversation
+
+        conversation.lastMessageAt = msg.sentAt
+        conversation.lastMessageText = text
+        conversation.unreadCount += 1
+
+        do {
+            try viewContext.save()
+            messageText = ""
+        } catch {
+            // could show error
+        }
+    }
+
+    private func markConversationRead() {
+        conversation.unreadCount = 0
+        try? viewContext.save()
+    }
+
+    private var bg: Color {
+        Color(uiColor: UIColor { tc in
+            tc.userInterfaceStyle == .dark
+            ? UIColor(red: 0.06, green: 0.10, blue: 0.13, alpha: 1.0)
+            : UIColor(red: 0.96, green: 0.97, blue: 0.97, alpha: 1.0)
+        })
     }
 }
 
 #Preview {
     LandlordMessages()
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }

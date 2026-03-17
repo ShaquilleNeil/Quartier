@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct ContentView: View {
     @EnvironmentObject var authService: AuthService
@@ -33,6 +34,7 @@ struct ContentView: View {
                 LoginSwitch()
             }
         }
+        .padding()
     }
 }
 
@@ -43,4 +45,5 @@ struct ContentView: View {
     return ContentView()
         .environmentObject(firebase)
         .environmentObject(auth)
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }

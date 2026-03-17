@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct LandlordHome: View {
     var body: some View {
@@ -15,10 +16,23 @@ struct LandlordHome: View {
 
 // MARK: - Dashboard (mapped from HTML "Landlord Dashboard")
 private struct LandlordDashboardView: View {
+    @Environment(\.managedObjectContext) private var viewContext
+
+    @FetchRequest(
+        sortDescriptors: [
+            NSSortDescriptor(keyPath: \LDTask.dueDate, ascending: true),
+            NSSortDescriptor(keyPath: \LDTask.createdAt, ascending: false),
+        ],
+        animation: .default
+    )
+    private var ldTasks: FetchedResults<LDTask>
 
     enum Mode: String, CaseIterable { case landlord = "Landlord", tenant = "Tenant" }
 
     @State private var mode: Mode = .landlord
+    @State private var showNewNotice = false
+    @State private var showTaskForm = false
+    @State private var taskToEdit: LDTask?
 
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
 
@@ -36,11 +50,9 @@ private struct LandlordDashboardView: View {
         .init(name: "Marc Antoine", subtitle: "2BR Modern Loft • Downtown", timeAgo: "45m ago", hasUnreadDot: false),
     ]
 
-    private let tasks: [TaskItem] = [
-        .init(title: "Sign lease renewal - Apt 4B", subtitle: "Due tomorrow", isDone: true),
-        .init(title: "Fix leaking tap - Unit 12", subtitle: "Maintenance request", isDone: false),
-        .init(title: "Verify insurance - 890 Rue Peel", subtitle: "Compliance check", isDone: false),
-    ]
+    private var pendingTaskCount: Int {
+        ldTasks.filter { !$0.isDone }.count
+    }
 
     var body: some View {
         ZStack {
@@ -62,15 +74,17 @@ private struct LandlordDashboardView: View {
 
                         Spacer()
 
-                        Button {} label: {
-                            Image(systemName: "bell")
+                        Button { showNewNotice = true } label: {
+                            Image(systemName: "bell.badge")
                                 .font(.system(size: 20, weight: .semibold))
                                 .frame(width: 44, height: 44)
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
+                    .sheet(isPresented: $showNewNotice) {
+                        NewNoticeView()
+                            .environment(\.managedObjectContext, viewContext)
+                    }
 
                     // Mode Toggle
                     HStack {
@@ -137,22 +151,43 @@ private struct LandlordDashboardView: View {
                             Text("Tasks")
                                 .font(.system(size: 20, weight: .bold))
                             Spacer()
-                            Text("\(tasks.filter { !$0.isDone }.count) PENDING")
+                            Text("\(pendingTaskCount) PENDING")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(primary)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
                                 .background(Capsule().fill(primary.opacity(0.12)))
+                            Button {
+                                taskToEdit = nil
+                                showTaskForm = true
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(primary)
+                            }
+                            .buttonStyle(.plain)
                         }
                         .padding(.horizontal, 16)
                         .padding(.top, 6)
 
                         VStack(spacing: 10) {
-                            ForEach(tasks) { t in
-                                taskRow(t)
+                            if ldTasks.isEmpty {
+                                Text("No tasks yet. Tap + to add.")
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                            } else {
+                                ForEach(ldTasks, id: \.objectID) { task in
+                                    taskRow(task: task)
+                                }
                             }
                         }
                         .padding(.horizontal, 16)
+                    }
+                    .sheet(isPresented: $showTaskForm) {
+                        NewTaskView(existingTask: taskToEdit)
+                            .environment(\.managedObjectContext, viewContext)
                     }
 
                     Spacer(minLength: 16)
@@ -261,22 +296,35 @@ private struct LandlordDashboardView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(border, lineWidth: 1))
     }
 
-    private func taskRow(_ t: TaskItem) -> some View {
-        HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(t.isDone ? primary : Color.gray.opacity(0.35), lineWidth: 2)
-                    .frame(width: 22, height: 22)
-                if t.isDone {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(primary)
+    private func taskRow(task: LDTask) -> some View {
+        let isDone = task.isDone
+        return HStack(spacing: 12) {
+            Button {
+                task.isDone.toggle()
+                try? viewContext.save()
+            } label: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isDone ? primary : Color.gray.opacity(0.35), lineWidth: 2)
+                        .frame(width: 22, height: 22)
+                    if isDone {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(primary)
+                    }
                 }
             }
+            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(t.title).font(.system(size: 14, weight: .medium)).lineLimit(1)
-                Text(t.subtitle).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                Text(task.title ?? "Task")
+                    .font(.system(size: 14, weight: .medium))
+                    .lineLimit(1)
+                    .strikethrough(isDone, color: .secondary)
+                Text(task.subtitle ?? "")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
             Spacer()
@@ -288,8 +336,29 @@ private struct LandlordDashboardView: View {
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 14).fill(cardBg))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(border, lineWidth: 1))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            taskToEdit = task
+            showTaskForm = true
+        }
+        .contextMenu {
+            Button {
+                taskToEdit = task
+                showTaskForm = true
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                viewContext.delete(task)
+                try? viewContext.save()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 }
+
+
 
 // MARK: - Small Models
 private struct MetricCard: Identifiable {
@@ -311,14 +380,8 @@ private struct Inquiry: Identifiable {
     let hasUnreadDot: Bool
 }
 
-private struct TaskItem: Identifiable {
-    let id = UUID()
-    let title: String
-    let subtitle: String
-    let isDone: Bool
-}
-
 #Preview {
     LandlordHome()
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }
 

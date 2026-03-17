@@ -3,11 +3,6 @@
 //  Quartier
 //
 
-//
-//  LandlordProfile.swift
-//  Quartier
-//
-
 import SwiftUI
 import FirebaseAuth
 
