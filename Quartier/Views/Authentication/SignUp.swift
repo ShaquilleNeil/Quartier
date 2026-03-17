@@ -15,6 +15,8 @@ struct SignUp: View {
     @State private var email = ""
     @State private var password = ""
     @State private var isPasswordVisible = false
+    @State private var errorMessage: String?
+    @State private var isSigningUp = false
     @EnvironmentObject var authService: AuthService
     
     var body: some View {
@@ -103,17 +105,35 @@ struct SignUp: View {
                             .padding(.horizontal, 24)
                             .tint(Color.quartierBlue)
                         
+                        // Error message
+                        if let errorMessage = errorMessage {
+                            Text(errorMessage)
+                                .font(.system(size: 14))
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                                .padding(.top, 8)
+                        }
+
                         // Submit Button
                         Button(action: handleSignUp) {
-                            Text("Sign Up")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 56)
-                                .background(Color.quartierBlue)
-                                .cornerRadius(12)
-                                .shadow(color: Color.quartierBlue.opacity(0.2), radius: 10, x: 0, y: 4)
+                            Group {
+                                if isSigningUp {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                } else {
+                                    Text("Sign Up")
+                                }
+                            }
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .background(isSigningUp ? Color.gray : Color.quartierBlue)
+                            .cornerRadius(12)
+                            .shadow(color: Color.quartierBlue.opacity(0.2), radius: 10, x: 0, y: 4)
                         }
+                        .disabled(isSigningUp || email.isEmpty || password.count < 8)
                         .padding(.top, 32)
                         
                         // Footer
@@ -145,12 +165,14 @@ struct SignUp: View {
     }
     
     func handleSignUp() {
-        // call auth service
-        authService.register(email: email, password: password, role: selectedRole.rawValue) { success in
+        errorMessage = nil
+        isSigningUp = true
+        authService.register(email: email.trimmingCharacters(in: .whitespacesAndNewlines), password: password, role: selectedRole.rawValue) { success, message in
+            isSigningUp = false
             if success {
-                print("signed up as \(selectedRole.rawValue)")
+                dismiss()
             } else {
-                print("sign up failed")
+                errorMessage = message ?? "Sign up failed."
             }
         }
     }

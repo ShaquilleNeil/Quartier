@@ -12,6 +12,11 @@ struct NewScheduleEventView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
 
+    /// nil = create new; non-nil = edit existing
+    var existingEvent: LDScheduleEvent?
+    /// Optional callback so parent sheet can also close explicitly
+    var onSaved: (() -> Void)?
+
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \LDListing.address, ascending: true)],
         animation: .default
@@ -96,7 +101,7 @@ struct NewScheduleEventView: View {
                     }
                 }
             }
-            .navigationTitle("New Schedule")
+            .navigationTitle(existingEvent == nil ? "New Schedule" : "Edit Schedule")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -106,6 +111,13 @@ struct NewScheduleEventView: View {
                     Button("Save") { saveEvent() }
                         .disabled(isSaving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+                if existingEvent != nil {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button(role: .destructive, action: deleteEvent) {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                }
             }
             .onChange(of: scopeAll) { _, isAll in
                 if isAll { selectedListingIDs.removeAll() }
@@ -114,6 +126,32 @@ struct NewScheduleEventView: View {
                 if isAllDay {
                     endAt = Calendar.current.startOfDay(for: startAt).addingTimeInterval(86400 - 1)
                 }
+            }
+            .onAppear(perform: loadInitial)
+        }
+    }
+
+    private func loadInitial() {
+        if let event = existingEvent {
+            // Editing existing event
+            title = event.title ?? ""
+            notes = event.notes ?? ""
+            allDay = event.allDay
+            if let s = event.startAt {
+                startAt = s
+            }
+            if let e = event.endAt {
+                endAt = e
+            }
+
+            let targets = event.targets as? Set<LDScheduleTarget> ?? []
+            if targets.contains(where: { $0.scopeType == LDScopeType.all.rawValue }) {
+                scopeAll = true
+                selectedListingIDs.removeAll()
+            } else {
+                scopeAll = false
+                let ids: [UUID] = targets.compactMap { $0.listing?.id }
+                selectedListingIDs = Set(ids)
             }
         }
     }
@@ -134,38 +172,97 @@ struct NewScheduleEventView: View {
             return
         }
 
-        let scope: ScheduleEventService.ScheduleScope
-        if scopeAll {
-            scope = .all
-        } else {
-            let selected = allListings.filter { listing in
-                guard let id = listing.id else { return false }
-                return selectedListingIDs.contains(id)
-            }
-            if selected.isEmpty {
-                errorMessage = "Select at least one apartment, or use All apartments."
-                return
-            }
-            scope = .listings(Array(selected))
-        }
+        if let event = existingEvent {
+            // Update existing event
+            event.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            event.notes = notes.isEmpty ? nil : notes
+            event.startAt = eventStart
+            event.endAt = eventEnd
+            event.allDay = allDay
 
-        do {
-            let service = ScheduleEventService(context: viewContext)
-            _ = try service.createScheduleEvent(
-                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                notes: notes.isEmpty ? nil : notes,
-                startAt: eventStart,
-                endAt: eventEnd,
-                allDay: allDay,
-                visibility: 1,
-                tenantRelevant: true,
-                scope: scope,
-                pushToConversations: true
-            )
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
+            // Replace targets based on current scope
+            let existingTargets = event.targets as? Set<LDScheduleTarget> ?? []
+            existingTargets.forEach { viewContext.delete($0) }
+
+            if scopeAll {
+                let t = LDScheduleTarget(context: viewContext)
+                t.id = UUID()
+                t.createdAt = Date()
+                t.scopeType = LDScopeType.all.rawValue
+                t.scheduleEvent = event
+                t.listing = nil
+            } else {
+                let selected = allListings.filter { listing in
+                    guard let id = listing.id else { return false }
+                    return selectedListingIDs.contains(id)
+                }
+                if selected.isEmpty {
+                    errorMessage = "Select at least one apartment, or use All apartments."
+                    return
+                }
+                for listing in selected {
+                    let t = LDScheduleTarget(context: viewContext)
+                    t.id = UUID()
+                    t.createdAt = Date()
+                    t.scopeType = LDScopeType.listing.rawValue
+                    t.scheduleEvent = event
+                    t.listing = listing
+                }
+            }
+
+            do {
+                try viewContext.save()
+                onSaved?()
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        } else {
+            // Create new event via service (keeps existing behavior including system messages)
+            let scope: ScheduleEventService.ScheduleScope
+            if scopeAll {
+                scope = .all
+            } else {
+                let selected = allListings.filter { listing in
+                    guard let id = listing.id else { return false }
+                    return selectedListingIDs.contains(id)
+                }
+                if selected.isEmpty {
+                    errorMessage = "Select at least one apartment, or use All apartments."
+                    return
+                }
+                scope = .listings(Array(selected))
+            }
+
+            do {
+                let service = ScheduleEventService(context: viewContext)
+                _ = try service.createScheduleEvent(
+                    title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                    notes: notes.isEmpty ? nil : notes,
+                    startAt: eventStart,
+                    endAt: eventEnd,
+                    allDay: allDay,
+                    visibility: 1,
+                    tenantRelevant: true,
+                    scope: scope,
+                    pushToConversations: true
+                )
+                onSaved?()
+                dismiss()
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
+    }
+
+    private func deleteEvent() {
+        guard let event = existingEvent else { return }
+        viewContext.delete(event)
+        // 对于删除操作，这里更偏向“尽量删掉并关闭界面”，
+        // 不再把 Core Data 的底层校验错误展示给用户，以免出现你看到的红色提示但实际上已经删除成功的情况。
+        try? viewContext.save()
+        onSaved?()
+        dismiss()
     }
 }
 

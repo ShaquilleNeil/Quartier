@@ -61,27 +61,25 @@ class AuthService: ObservableObject {
     
     // MARK: - Register
     
-    func register(email: String, password: String, role: String, completion: @escaping (Bool) -> Void) {
+    func register(email: String, password: String, role: String, completion: @escaping (Bool, String?) -> Void) {
         Auth.auth().createUser(withEmail: email, password: password) { result, error in
-            
-            if error != nil {
-                completion(false)
+            if let error = error as NSError? {
+                let message = error.localizedDescription
+                DispatchQueue.main.async { completion(false, message) }
                 return
             }
-            
+
             guard let uid = result?.user.uid else {
-                completion(false)
+                DispatchQueue.main.async { completion(false, "Could not get user id.") }
                 return
             }
-            
-            // Save user doc with lifecycle defaults
+
             self.firebase.saveUser(uid: uid, email: email, role: role) { success in
                 DispatchQueue.main.async {
                     if success {
-                        // Auth listener will hydrate everything
-                        completion(true)
+                        completion(true, nil)
                     } else {
-                        completion(false)
+                        completion(false, "Could not save profile. Try again.")
                     }
                 }
             }

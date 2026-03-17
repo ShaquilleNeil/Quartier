@@ -63,6 +63,7 @@ struct LandlordListings: View {
                                 .padding(.vertical, 4)
                             }
                         }
+                        .onDelete(perform: deleteListings)
                     }
                     .listStyle(.plain)
                 }
@@ -99,6 +100,19 @@ struct LandlordListings: View {
             return String(format: "$%.0f / mo", p)
         }
         return "No price"
+    }
+
+    private func deleteListings(at offsets: IndexSet) {
+        for index in offsets {
+            let listing = listings[index]
+            viewContext.delete(listing)
+        }
+        do {
+            try viewContext.save()
+        } catch {
+            // In production you might show an error UI; for now we fail silently.
+            print("Failed to delete listing:", error)
+        }
     }
 }
 

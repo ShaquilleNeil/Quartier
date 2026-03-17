@@ -19,6 +19,8 @@ struct LandlordSchedule: View {
 
     @State private var selectedDate: Date = Date()
     @State private var showNewEvent = false
+    @State private var showEditEvent = false
+    @State private var eventToEdit: LDScheduleEvent?
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
 
     private var eventsOnSelectedDay: [LDScheduleEvent] {
@@ -70,10 +72,23 @@ struct LandlordSchedule: View {
                                 .padding(.vertical, 12)
                         } else {
                             ForEach(eventsOnSelectedDay, id: \.objectID) { event in
-                                scheduleRow(
-                                    title: event.title ?? "Event",
-                                    subtitle: formatEventTime(event)
-                                )
+                                Button {
+                                    eventToEdit = event
+                                    showEditEvent = true
+                                } label: {
+                                    scheduleRow(
+                                        title: event.title ?? "Event",
+                                        subtitle: formatEventTime(event)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        deleteEvent(event)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                     }
@@ -101,8 +116,17 @@ struct LandlordSchedule: View {
             .padding(.bottom, 18)
         }
         .sheet(isPresented: $showNewEvent) {
-            NewScheduleEventView()
+            NewScheduleEventView(onSaved: { showNewEvent = false })
                 .environment(\.managedObjectContext, viewContext)
+        }
+        .sheet(isPresented: $showEditEvent) {
+            if let event = eventToEdit {
+                NewScheduleEventView(existingEvent: event, onSaved: { showEditEvent = false })
+                    .environment(\.managedObjectContext, viewContext)
+            }
+        }
+        .onChange(of: showEditEvent) { _, visible in
+            if !visible { eventToEdit = nil }
         }
     }
 
@@ -147,6 +171,15 @@ struct LandlordSchedule: View {
 
     private var cardBg: Color { Color(uiColor: .secondarySystemBackground) }
     private var border: Color { Color.primary.opacity(0.08) }
+
+    private func deleteEvent(_ event: LDScheduleEvent) {
+        viewContext.delete(event)
+        do {
+            try viewContext.save()
+        } catch {
+            print("Failed to delete event:", error)
+        }
+    }
 }
 
 #Preview {

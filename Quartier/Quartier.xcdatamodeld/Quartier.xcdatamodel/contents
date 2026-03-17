@@ -19,7 +19,7 @@
     </entity>
     <entity name="LDListing" representedClassName="LDListing" syncable="YES" codeGenerationType="class">
         <attribute name="address" optional="YES" attributeType="String"/>
-        <attribute name="amenities" optional="YES" attributeType="Transformable"/>
+        <attribute name="amenities" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromData"/>
         <attribute name="bathrooms" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="bedrooms" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="buildingID" optional="YES" attributeType="String"/>

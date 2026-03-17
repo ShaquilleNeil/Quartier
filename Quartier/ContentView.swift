@@ -11,7 +11,7 @@ struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
 
     var body: some View {
-        Group {
+        ZStack {
             if authService.userSession != nil {
                 if let role = authService.currentUserRole {
                     if role == "tenant" {
@@ -34,7 +34,6 @@ struct ContentView: View {
                 LoginSwitch()
             }
         }
-        .padding()
     }
 }
 
