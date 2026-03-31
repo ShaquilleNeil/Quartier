@@ -29,7 +29,17 @@ struct RemoteListing: Identifiable {
 
     let status: String
     let isRented: Bool
+    let currentTenantUserId: String?
 
     let createdAt: Date
     let updatedAt: Date
+
+    var isEffectivelyRented: Bool {
+        if isRented { return true }
+        if let tenantId = currentTenantUserId,
+           !tenantId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+        return false
+    }
 }

@@ -37,6 +37,28 @@ private struct MyListingsView: View {
         case rented = "Rented"
     }
 
+    /// Drafts that are not marked rented (rented drafts appear under Rented).
+    private var draftRows: [LDListing] {
+        draftListings.filter { !$0.isRented }
+    }
+
+    /// Rented listings saved only in Core Data / not yet merged into the landlord’s Firebase query result.
+    private var rentedDraftsNotOnFirebase: [LDListing] {
+        let remoteIds = Set(firebase.firebaseListings.map(\.id))
+        return draftListings.filter { listing in
+            guard listing.isRented, let id = listing.id else { return false }
+            return !remoteIds.contains(id.uuidString)
+        }
+    }
+
+    private func isRemoteListingRented(_ item: RemoteListing) -> Bool {
+        item.isEffectivelyRented
+    }
+
+    private func isRemoteListingPublished(_ item: RemoteListing) -> Bool {
+        item.status.lowercased() == "published" && !isRemoteListingRented(item)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottomTrailing) {
@@ -100,13 +122,13 @@ private struct MyListingsView: View {
 
     private var draftListView: some View {
         VStack(spacing: 12) {
-            ForEach(draftListings) { item in
+            ForEach(draftRows, id: \.objectID) { item in
                 NavigationLink(
                     destination: ListingFormView(
                         existingListing: convertDraftToListing(item)
                     )
                 ) {
-                    draftCard(item)
+                    draftCard(item, rentedLocal: false)
                 }
                 .buttonStyle(.plain)
             }
@@ -149,9 +171,9 @@ private struct MyListingsView: View {
     
     
     
-    private func draftCard(_ item: LDListing) -> some View {
+    private func draftCard(_ item: LDListing, rentedLocal: Bool) -> some View {
         HStack(spacing: 14) {
-            
+
             // Thumbnail
             if let images = item.draftImages as? Set<DraftImage>,
                let first = images.sorted(by: { $0.orderIndex < $1.orderIndex }).first,
@@ -178,7 +200,7 @@ private struct MyListingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                
+
                 HStack {
                     Text(item.address ?? "Untitled Draft")
                         .font(.system(size: 17, weight: .semibold))
@@ -186,13 +208,13 @@ private struct MyListingsView: View {
 
                     Spacer()
 
-                    Text("Draft")
+                    Text(rentedLocal ? "Rented (draft)" : "Draft")
                         .font(.system(size: 11, weight: .bold))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(
                             Capsule()
-                                .fill(Color.orange.opacity(0.18))
+                                .fill((rentedLocal ? Color.blue : Color.orange).opacity(0.18))
                         )
                     Button(role: .destructive) {
                         if let id = item.id {
@@ -247,7 +269,7 @@ private struct MyListingsView: View {
 
     private var publishedListView: some View {
         VStack(spacing: 12) {
-            ForEach(firebase.firebaseListings.filter { $0.status.lowercased() == "published" }) { item in
+            ForEach(firebase.firebaseListings.filter(isRemoteListingPublished)) { item in
                 NavigationLink(
                     destination: ListingFormView(
                         existingListing: convertToEditableListing(item)
@@ -264,13 +286,23 @@ private struct MyListingsView: View {
 
     private var rentedListView: some View {
         VStack(spacing: 12) {
-            ForEach(firebase.firebaseListings.filter { $0.isRented }) { item in
+            ForEach(firebase.firebaseListings.filter(isRemoteListingRented)) { item in
                 NavigationLink(
                     destination: ListingFormView(
                         existingListing: convertToEditableListing(item)
                     )
                 ) {
                     remoteCard(item)
+                }
+                .buttonStyle(.plain)
+            }
+            ForEach(rentedDraftsNotOnFirebase, id: \.objectID) { item in
+                NavigationLink(
+                    destination: ListingFormView(
+                        existingListing: convertDraftToListing(item)
+                    )
+                ) {
+                    draftCard(item, rentedLocal: true)
                 }
                 .buttonStyle(.plain)
             }

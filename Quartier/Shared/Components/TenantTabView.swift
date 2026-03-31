@@ -34,6 +34,11 @@ struct TenantTabView: View {
                     Label("Saved", systemImage: "bookmark.fill")
                 }
 
+            TenantMessages()
+                .tabItem {
+                    Label("Messages", systemImage: "message.fill")
+                }
+
             TenantSchedule()
                 .tabItem {
                     Label("Agenda", systemImage: "calendar")
