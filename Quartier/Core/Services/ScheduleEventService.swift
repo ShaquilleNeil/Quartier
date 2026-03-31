@@ -86,6 +86,113 @@ final class ScheduleEventService {
         return event
     }
 
+    @discardableResult
+    func updateScheduleEvent(
+        _ event: LDScheduleEvent,
+        title: String,
+        notes: String? = nil,
+        locationDetail: String? = nil,
+        startAt: Date,
+        endAt: Date,
+        allDay: Bool = false,
+        timezone: String? = "America/Montreal",
+        recurrenceRule: String? = nil,
+        visibility: Int16 = 1,
+        tenantRelevant: Bool = true,
+        scope: ScheduleScope
+    ) throws -> LDScheduleEvent {
+        let now = Date()
+
+        event.title = title
+        event.notes = notes
+        event.locationDetail = locationDetail
+        event.startAt = startAt
+        event.endAt = endAt
+        event.allDay = allDay
+        event.timezone = timezone
+        event.recurrenceRule = recurrenceRule
+        event.visibility = visibility
+        event.tenantRelevant = tenantRelevant
+        event.updatedAt = now
+        event.version += 1
+        event.lastModifiedBy = "landlord"
+
+        if let oldTargets = event.targets as? Set<LDScheduleTarget> {
+            for t in oldTargets {
+                context.delete(t)
+            }
+        }
+
+        switch scope {
+        case .all:
+            let t = LDScheduleTarget(context: context)
+            t.id = UUID()
+            t.createdAt = now
+            t.scopeType = LDScopeType.all.rawValue
+            t.scheduleEvent = event
+            t.listing = nil
+        case .listings(let listings):
+            for listing in listings {
+                let t = LDScheduleTarget(context: context)
+                t.id = UUID()
+                t.createdAt = now
+                t.scopeType = LDScopeType.listing.rawValue
+                t.scheduleEvent = event
+                t.listing = listing
+            }
+        }
+
+        try context.save()
+        return event
+    }
+
+    /// Safe update path: modify event fields only, keep existing targets/scope unchanged.
+    @discardableResult
+    func updateScheduleEventBasics(
+        _ event: LDScheduleEvent,
+        title: String,
+        notes: String? = nil,
+        locationDetail: String? = nil,
+        startAt: Date,
+        endAt: Date,
+        allDay: Bool = false,
+        timezone: String? = "America/Montreal",
+        recurrenceRule: String? = nil,
+        visibility: Int16 = 1,
+        tenantRelevant: Bool = true
+    ) throws -> LDScheduleEvent {
+        let now = Date()
+        event.title = title
+        event.notes = notes
+        event.locationDetail = locationDetail
+        event.startAt = startAt
+        event.endAt = endAt
+        event.allDay = allDay
+        event.timezone = timezone
+        event.recurrenceRule = recurrenceRule
+        event.visibility = visibility
+        event.tenantRelevant = tenantRelevant
+        event.updatedAt = now
+        event.version += 1
+        event.lastModifiedBy = "landlord"
+        try context.save()
+        return event
+    }
+
+    func deleteScheduleEvent(_ event: LDScheduleEvent, removeLinkedMessages: Bool = true) throws {
+        if removeLinkedMessages {
+            let req = NSFetchRequest<LDMessage>(entityName: "LDMessage")
+            req.predicate = NSPredicate(format: "linkedScheduleEvent == %@", event)
+            let linked = try context.fetch(req)
+            for msg in linked {
+                context.delete(msg)
+            }
+        }
+
+        context.delete(event)
+        try context.save()
+    }
+
     // MARK: - Scope
     enum ScheduleScope {
         case all

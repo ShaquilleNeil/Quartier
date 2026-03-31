@@ -167,7 +167,7 @@ final class FirebaseSync {
         item.status = data["status"] as? String ?? ""
         item.rules = data["rules"] as? String ?? ""
         item.address = data["address"] as? String ?? ""
-        item.isRented = data["isRented"] as? Bool ?? false
+        item.isRented = FirebaseManager.firestoreBool(data["isRented"])
 
         if let updatedAt = remoteUpdatedAt {
             item.updatedAt = updatedAt

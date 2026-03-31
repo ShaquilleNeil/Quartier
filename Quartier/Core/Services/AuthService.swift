@@ -6,7 +6,7 @@
 import Foundation
 import Combine
 import FirebaseAuth
-import Combine
+import FirebaseFirestore
 
 class AuthService: ObservableObject {
     
@@ -16,10 +16,14 @@ class AuthService: ObservableObject {
     @Published var currentUserRole: String?
     @Published var hasCompletedPreferences: Bool = false
     @Published var isRenting: Bool = false
-    
+    @Published var rentedListingId: String?
+    @Published var rentedAddress: String?
+
     // MARK: - Dependencies
-    
+
     private let firebase: FirebaseManager
+    private let db = Firestore.firestore()
+    private var userDocListener: ListenerRegistration?
     
     // MARK: - Init
     
@@ -29,12 +33,15 @@ class AuthService: ObservableObject {
         // 🔥 Reactive auth listener (canonical Firebase pattern)
         Auth.auth().addStateDidChangeListener { [weak self] _, user in
             guard let self else { return }
-            
+
             DispatchQueue.main.async {
                 self.userSession = user
-                
-                if user != nil {
-                    self.fetchUserData()
+                self.userDocListener?.remove()
+                self.userDocListener = nil
+
+                if let user = user {
+                    self.attachUserDocumentListener(uid: user.uid)
+                    self.firebase.fetchUser(uid: user.uid) { _ in }
                 } else {
                     self.resetState()
                 }
@@ -92,15 +99,48 @@ class AuthService: ObservableObject {
     
     func fetchUserData() {
         guard let uid = userSession?.uid else { return }
-        
+
         firebase.fetchUser(uid: uid) { [weak self] data in
             guard let self else { return }
-            
+
             DispatchQueue.main.async {
-                self.currentUserRole = data?["role"] as? String
-                self.hasCompletedPreferences = data?["hasCompletedPreferences"] as? Bool ?? false
-                self.isRenting = data?["isRenting"] as? Bool ?? false
+                if let data {
+                    self.applyUserDocument(data)
+                }
             }
+        }
+    }
+
+    private func attachUserDocumentListener(uid: String) {
+        userDocListener = db.collection("users").document(uid).addSnapshotListener { [weak self] snapshot, _ in
+            guard let self else { return }
+            guard let data = snapshot?.data() else {
+                if snapshot?.exists == false {
+                    DispatchQueue.main.async {
+                        self.applyUserDocument([:])
+                    }
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                self.applyUserDocument(data)
+            }
+        }
+    }
+
+    private func applyUserDocument(_ data: [String: Any]) {
+        currentUserRole = data["role"] as? String
+        hasCompletedPreferences = data["hasCompletedPreferences"] as? Bool ?? false
+        isRenting = data["isRenting"] as? Bool ?? false
+        if let lid = data["rentedListingId"] as? String, !lid.isEmpty {
+            rentedListingId = lid
+        } else {
+            rentedListingId = nil
+        }
+        if let addr = data["rentedAddress"] as? String, !addr.isEmpty {
+            rentedAddress = addr
+        } else {
+            rentedAddress = nil
         }
     }
     
@@ -114,8 +154,12 @@ class AuthService: ObservableObject {
     // MARK: - Helpers
     
     private func resetState() {
-        self.currentUserRole = nil
-        self.hasCompletedPreferences = false
-        self.isRenting = false
+        userDocListener?.remove()
+        userDocListener = nil
+        currentUserRole = nil
+        hasCompletedPreferences = false
+        isRenting = false
+        rentedListingId = nil
+        rentedAddress = nil
     }
 }

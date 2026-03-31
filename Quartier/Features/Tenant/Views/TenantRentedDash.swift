@@ -6,46 +6,93 @@
 //
 
 import SwiftUI
+import SDWebImageSwiftUI
 
 struct TenantRentedDash: View {
+    @EnvironmentObject private var auth: AuthService
+    @EnvironmentObject private var firebase: FirebaseManager
+    @State private var listing: RemoteListing?
+
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                
-                HeaderView()
-                
-                RentStatusCard()
-                
+
+                HeaderView(
+                    title: headerTitle,
+                    subtitle: subtitleLine
+                )
+
+                RentStatusCard(
+                    price: listing?.price ?? 0,
+                    address: listing?.address ?? auth.rentedAddress ?? "Your rental",
+                    imageURL: listing?.imageURLs.first
+                )
+
                 QuickActionsGrid()
-                
+
                 UpdatesSection()
             }
             .padding()
         }
         .background(Color(.systemGray6))
+        .onAppear(perform: loadListing)
+        .onChange(of: auth.rentedListingId) { _, _ in
+            loadListing()
+        }
+    }
+
+    private var headerTitle: String {
+        if let a = listing?.address, !a.isEmpty { return a }
+        if let a = auth.rentedAddress, !a.isEmpty { return a }
+        return "Your rental"
+    }
+
+    private var subtitleLine: String {
+        if let b = listing?.buildingId, !b.isEmpty {
+            return "Building \(b)"
+        }
+        return "Quartier tenant"
+    }
+
+    private func loadListing() {
+        guard let id = auth.rentedListingId, !id.isEmpty else {
+            listing = nil
+            return
+        }
+        firebase.fetchListingById(listingId: id) { remote in
+            listing = remote
+        }
     }
 }
 
-
 private struct HeaderView: View {
+    let title: String
+    let subtitle: String
+
     var body: some View {
         HStack {
             Image(systemName: "person.circle.fill")
                 .resizable()
                 .frame(width: 48, height: 48)
                 .foregroundColor(.gray)
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 Text("QUARTIER")
                     .font(.caption)
                     .foregroundColor(.gray)
-                
-                Text("Unit 402 • The Mason")
+
+                Text(title)
                     .font(.headline)
+                    .lineLimit(2)
+
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
             }
-            
+
             Spacer()
-            
+
             Image(systemName: "bell.fill")
                 .font(.title3)
         }
@@ -53,40 +100,72 @@ private struct HeaderView: View {
 }
 
 private struct RentStatusCard: View {
+    let price: Double
+    let address: String
+    let imageURL: String?
+
     @State private var isPresentingPayRent = false
-    
+
+    private var monthYear: String {
+        let f = DateFormatter()
+        f.dateFormat = "MMMM yyyy"
+        return f.string(from: Date())
+    }
+
+    private var priceFormatted: String {
+        guard price > 0 else { return "—" }
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "CAD"
+        return f.string(from: NSNumber(value: price)) ?? "$\(price)"
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            
-            Image("apartment1") // replace with your asset
-                .resizable()
-                .scaledToFill()
-                .frame(height: 180)
-                .clipped()
-            
+
+            Group {
+                if let s = imageURL, let url = URL(string: s) {
+                    WebImage(url: url)
+                        .resizable()
+                        .indicator(.activity)
+                        .scaledToFill()
+                } else {
+                    Image("apartment1")
+                        .resizable()
+                        .scaledToFill()
+                }
+            }
+            .frame(height: 180)
+            .clipped()
+
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     VStack(alignment: .leading) {
                         Text("Rent Status")
                             .font(.headline)
-                        
-                        Text("September 2024")
+
+                        Text(monthYear)
                             .foregroundColor(.gray)
                     }
-                    
+
                     Spacer()
-                    
+
                     VStack(alignment: .trailing) {
-                        Text("$2,450.00")
+                        Text(priceFormatted)
                             .font(.title2.bold())
                             .foregroundColor(.red)
-                        
-                        Text("Due in 3 days")
+
+                        Text("Monthly rent")
                             .font(.caption)
                             .foregroundColor(.gray)
                     }
                 }
-                
+
+                Text(address)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+
                 Button {
                     self.isPresentingPayRent = true
                 } label: {
@@ -110,24 +189,23 @@ private struct RentStatusCard: View {
     }
 }
 
-
 private struct QuickActionsGrid: View {
-    
+
     let items = [
         ("Maintenance", "wrench"),
         ("Lost Keys", "key"),
         ("Amenities", "calendar"),
         ("Emergency", "exclamationmark.triangle.fill")
     ]
-    
+
     let columns = [GridItem(.flexible()), GridItem(.flexible())]
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("QUICK ACTIONS")
                 .font(.caption)
                 .foregroundColor(.gray)
-            
+
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(items, id: \.0) { item in
                     QuickActionCard(title: item.0, icon: item.1)
@@ -140,7 +218,7 @@ private struct QuickActionsGrid: View {
 private struct QuickActionCard: View {
     let title: String
     let icon: String
-    
+
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: icon)
@@ -148,7 +226,7 @@ private struct QuickActionCard: View {
                 .frame(width: 56, height: 56)
                 .background(Color(.systemGray5))
                 .clipShape(Circle())
-            
+
             Text(title)
                 .fontWeight(.medium)
         }
@@ -164,13 +242,13 @@ private struct UpdatesSection: View {
             HStack {
                 Text("Building Updates")
                     .font(.title3.bold())
-                
+
                 Spacer()
-                
+
                 Text("View All")
                     .foregroundColor(.red)
             }
-            
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack {
                     UpdateCard()
@@ -187,10 +265,10 @@ private struct UpdateCard: View {
             Text("ELEVATOR SERVICE")
                 .font(.caption)
                 .foregroundColor(.gray)
-            
+
             Text("Elevator B Maintenance")
                 .font(.headline)
-            
+
             Text("Regular inspection scheduled for tomorrow…")
                 .font(.caption)
                 .foregroundColor(.gray)
@@ -203,6 +281,10 @@ private struct UpdateCard: View {
 }
 
 #Preview {
-    TenantRentedDash()
-}
+    let firebase = FirebaseManager()
+    let auth = AuthService(firebase: firebase)
 
+    return TenantRentedDash()
+        .environmentObject(firebase)
+        .environmentObject(auth)
+}

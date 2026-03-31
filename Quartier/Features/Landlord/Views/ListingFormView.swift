@@ -47,7 +47,15 @@ struct ListingFormView: View {
             isEditing = false
         }
     }
-    
+
+    /// Published or rented listings: bind / unbind tenant (requires same listing on Firebase for cloud actions).
+    private var canManageTenantAssignment: Bool {
+        isEditing
+            && !listing.landLordId.isEmpty
+            && listing.landLordId == Auth.auth().currentUser?.uid
+            && (listing.status == .published || listing.isRented)
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
@@ -94,7 +102,17 @@ struct ListingFormView: View {
                 
                 Toggle("Rented", isOn: $listing.isRented)
                     .toggleStyle(SwitchToggleStyle())
-                
+
+                if canManageTenantAssignment {
+                    AssignTenantSection(
+                        listingId: listing.listingID.uuidString,
+                        isRented: $listing.isRented,
+                        onChange: {
+                            firebase.fetchListingsLandord()
+                        }
+                    )
+                }
+
                 // RULES
                 VStack(alignment: .leading) {
                     Text("Rules").font(.headline)
@@ -117,7 +135,7 @@ struct ListingFormView: View {
                     Spacer()
                     Button(isEditing ? "Update" : "Publish") {
                         listing.status = .published
-                        print("Saving listing for user:", firebase.currentUser?.id ?? "nil")
+                        print("Saving listing for user:", Auth.auth().currentUser?.uid ?? "nil")
                         publishListing()
                     }
                     .buttonStyle(.borderedProminent)
@@ -162,6 +180,27 @@ struct ListingFormView: View {
 
         return location.coordinate
     }
+
+    /// Prefer stored coordinates; otherwise geocode. If geocoding fails (e.g. kCLErrorDomain 8 — no results), fall back so publish/update still succeeds.
+    private func coordinatesForPublish() async -> CLLocationCoordinate2D {
+        if let lat = listing.latitude, let lon = listing.longitude {
+            if abs(lat) > 0.000_1 || abs(lon) > 0.000_1 {
+                return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            }
+        }
+        let trimmed = listing.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return CLLocationCoordinate2D(latitude: 0, longitude: 0)
+        }
+        do {
+            return try await geocodeAddress(trimmed)
+        } catch {
+            return Self.fallbackListingCoordinate
+        }
+    }
+
+    /// Default map center (Montréal) when address cannot be geocoded — same region as elsewhere in the app.
+    private static let fallbackListingCoordinate = CLLocationCoordinate2D(latitude: 45.5019, longitude: -73.5674)
     
     
     
@@ -294,9 +333,37 @@ struct FormCard: ViewModifier {
 }
 
 extension ListingFormView {
+    private func saveListingAndWait(_ imageURLs: [String]) async throws {
+        try await withCheckedThrowingContinuation { cont in
+            firebase.saveListing(
+                listingId: listing.listingID,
+                buildingId: listing.buildingID,
+                landLordId: listing.landLordId,
+                price: listing.price,
+                squareFeet: listing.squareFeet,
+                latitude: listing.latitude ?? 0,
+                longitude: listing.longitude ?? 0,
+                bedrooms: listing.bedrooms,
+                bathrooms: listing.bathrooms,
+                amenities: listing.amenities,
+                status: listing.status,
+                rules: listing.rules,
+                imageURLs: imageURLs,
+                address: listing.address,
+                isRented: listing.isRented
+            ) { result in
+                switch result {
+                case .success:
+                    cont.resume()
+                case .failure(let err):
+                    cont.resume(throwing: err)
+                }
+            }
+        }
+    }
 
     func publishListing() {
-        listing.landLordId = firebase.currentUser?.id ?? ""
+        listing.landLordId = Auth.auth().currentUser?.uid ?? ""
         isPublishing = true
 
         let wasDraft = (listing.status == .draft)
@@ -307,12 +374,9 @@ extension ListingFormView {
             Task {
                 do {
 
-                    // GEOCODE ADDRESS
-                    if listing.latitude == nil || listing.longitude == nil {
-                        let coord = try await geocodeAddress(listing.address)
-                        listing.latitude = coord.latitude
-                        listing.longitude = coord.longitude
-                    }
+                    let coord = await coordinatesForPublish()
+                    listing.latitude = coord.latitude
+                    listing.longitude = coord.longitude
 
                     let newURLs = try await firebase.uploadListingImages(
                         listingId: listing.listingID,
@@ -321,23 +385,7 @@ extension ListingFormView {
 
                     let allURLs = listing.existingImageURLs + newURLs
 
-                    firebase.saveListing(
-                        listingId: listing.listingID,
-                        buildingId: listing.buildingID,
-                        landLordId: listing.landLordId,
-                        price: listing.price,
-                        squareFeet: listing.squareFeet,
-                        latitude: listing.latitude ?? 0,
-                        longitude: listing.longitude ?? 0,
-                        bedrooms: listing.bedrooms,
-                        bathrooms: listing.bathrooms,
-                        amenities: listing.amenities,
-                        status: listing.status,
-                        rules: listing.rules,
-                        imageURLs: allURLs,
-                        address: listing.address,
-                        isRented: listing.isRented
-                    )
+                    try await saveListingAndWait(allURLs)
 
                     await MainActor.run {
                         if wasDraft {
@@ -370,35 +418,16 @@ extension ListingFormView {
         Task {
             do {
 
-                // GEOCODE ADDRESS
-                if listing.latitude == nil || listing.longitude == nil {
-                    let coord = try await geocodeAddress(listing.address)
-                    listing.latitude = coord.latitude
-                    listing.longitude = coord.longitude
-                }
+                let coord = await coordinatesForPublish()
+                listing.latitude = coord.latitude
+                listing.longitude = coord.longitude
 
                 let urls = try await firebase.uploadListingImages(
                     listingId: listing.listingID,
                     images: listing.images
                 )
 
-                firebase.saveListing(
-                    listingId: listing.listingID,
-                    buildingId: listing.buildingID,
-                    landLordId: listing.landLordId,
-                    price: listing.price,
-                    squareFeet: listing.squareFeet,
-                    latitude: listing.latitude ?? 0,
-                    longitude: listing.longitude ?? 0,
-                    bedrooms: listing.bedrooms,
-                    bathrooms: listing.bathrooms,
-                    amenities: listing.amenities,
-                    status: listing.status,
-                    rules: listing.rules,
-                    imageURLs: urls,
-                    address: listing.address,
-                    isRented: listing.isRented
-                )
+                try await saveListingAndWait(urls)
 
                 await MainActor.run {
                     if wasDraft {
@@ -425,7 +454,7 @@ extension ListingFormView {
     }
 
     func saveDraftListing() {
-        listing.landLordId = firebase.currentUser?.id ?? ""
+        listing.landLordId = Auth.auth().currentUser?.uid ?? ""
         coreDataManager.saveDraft(from: listing, context: viewContext)
     }
 }
