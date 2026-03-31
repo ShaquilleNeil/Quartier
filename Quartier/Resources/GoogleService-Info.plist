@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>AIzaSyC3leD6dn9p4Vlr21HsmwM7HPkA768Stgc</string>
+	<string>AIzaSyAUBJQWv2rLzECPrbIYD7rU2Km19t8SUJA</string>
 	<key>GCM_SENDER_ID</key>
-	<string>390078272406</string>
+	<string>968270714061</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.IOSGROUP.Quartier</string>
 	<key>PROJECT_ID</key>
-	<string>quartier-36ce6</string>
+	<string>quartier-c29dd</string>
 	<key>STORAGE_BUCKET</key>
-	<string>quartier-36ce6.firebasestorage.app</string>
+	<string>quartier-c29dd.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:390078272406:ios:76c4e1f5b3de021d3243b7</string>
+	<string>1:968270714061:ios:167f62d11d2e341b0ac584</string>
 </dict>
 </plist>

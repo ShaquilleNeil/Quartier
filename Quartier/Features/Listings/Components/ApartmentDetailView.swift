@@ -7,11 +7,18 @@
 
 import SwiftUI
 import MapKit
+import CoreData
+import FirebaseAuth
 
 struct ApartmentDetailView: View {
 
     let listing: Listing
     @State private var isExpanded = false
+    @State private var activeConversation: LDConversation?
+    @State private var showChat = false
+    @State private var chatError: String?
+    @Environment(\.managedObjectContext) private var viewContext
+    @EnvironmentObject private var firebase: FirebaseManager
 
     var body: some View {
 
@@ -31,7 +38,26 @@ struct ApartmentDetailView: View {
 
                 }.padding()
             }
-        }.padding()
+        }
+        .padding()
+        .sheet(isPresented: $showChat, onDismiss: {
+            activeConversation = nil
+        }) {
+            if let conv = activeConversation {
+                NavigationStack {
+                    TenantChatView(conversation: conv)
+                        .environment(\.managedObjectContext, viewContext)
+                }
+            }
+        }
+        .alert("Message", isPresented: Binding(
+            get: { chatError != nil },
+            set: { _ in chatError = nil }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(chatError ?? "")
+        }
     }
 
     private func infoColumn(value: Int, title: String) -> some View {
@@ -133,7 +159,7 @@ struct ApartmentDetailView: View {
 
                 Spacer()
 
-                Button(action: {}) {
+                Button(action: { contactLandlord() }) {
 
                     Text("Contact Landlord")
                         .foregroundStyle(.white)
@@ -197,6 +223,83 @@ struct ApartmentDetailView: View {
         .frame(height: 320)
         .clipped()
         .ignoresSafeArea(edges: .top)
+    }
+
+    private func contactLandlord() {
+        do {
+            let conv = try openOrCreateConversation()
+            activeConversation = conv
+            showChat = true
+        } catch {
+            chatError = error.localizedDescription
+        }
+    }
+
+    private func openOrCreateConversation() throws -> LDConversation {
+        let email = (firebase.currentUser?.email ?? Auth.auth().currentUser?.email ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !email.isEmpty else {
+            throw NSError(domain: "Quartier", code: 1, userInfo: [NSLocalizedDescriptionKey: "Please sign in to contact landlord."])
+        }
+
+        let listingEntity = try ensureListingEntity()
+        let tenantEntity = try ensureTenantEntity(email: email)
+
+        let req = NSFetchRequest<LDConversation>(entityName: "LDConversation")
+        req.predicate = NSPredicate(format: "listing == %@ AND tenant == %@", listingEntity, tenantEntity)
+        req.fetchLimit = 1
+        if let existing = try viewContext.fetch(req).first {
+            return existing
+        }
+
+        let conv = LDConversation(context: viewContext)
+        conv.id = UUID()
+        conv.listing = listingEntity
+        conv.listingId = listingEntity.id
+        conv.tenant = tenantEntity
+        conv.tenantName = tenantEntity.displayName?.isEmpty == false ? tenantEntity.displayName : email
+        conv.lastMessageAt = Date()
+        conv.lastMessageText = "Conversation started"
+        conv.unreadCount = 0
+        try viewContext.save()
+        return conv
+    }
+
+    private func ensureListingEntity() throws -> LDListing {
+        let req = NSFetchRequest<LDListing>(entityName: "LDListing")
+        req.predicate = NSPredicate(format: "id == %@", listing.listingID as CVarArg)
+        req.fetchLimit = 1
+        if let existing = try viewContext.fetch(req).first { return existing }
+
+        let item = LDListing(context: viewContext)
+        item.id = listing.listingID
+        item.address = listing.address
+        item.buildingID = listing.buildingID
+        item.landLordID = listing.landLordId
+        item.price = listing.price
+        item.bedrooms = Int16(listing.bedrooms)
+        item.bathrooms = Int16(listing.bathrooms)
+        item.squareFeet = Int32(listing.squareFeet)
+        item.status = listing.status.rawValue
+        item.isRented = listing.isRented
+        item.createdAt = Date()
+        item.updatedAt = Date()
+        return item
+    }
+
+    private func ensureTenantEntity(email: String) throws -> LDTenant {
+        let req = NSFetchRequest<LDTenant>(entityName: "LDTenant")
+        req.predicate = NSPredicate(format: "email == %@", email)
+        req.fetchLimit = 1
+        if let existing = try viewContext.fetch(req).first { return existing }
+
+        let t = LDTenant(context: viewContext)
+        t.id = UUID()
+        t.email = email
+        t.displayName = firebase.currentUser?.email.components(separatedBy: "@").first ?? "Tenant"
+        t.createdAt = Date()
+        t.updatedAt = Date()
+        return t
     }
 }
 
@@ -271,4 +374,6 @@ struct MapCard: View {
     }()
 
     return ApartmentDetailView(listing: mock)
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+        .environmentObject(FirebaseManager())
 }

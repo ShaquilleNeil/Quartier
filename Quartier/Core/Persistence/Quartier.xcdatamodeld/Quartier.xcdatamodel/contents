@@ -14,12 +14,12 @@
         <attribute name="tenantName" optional="YES" attributeType="String"/>
         <attribute name="unreadCount" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="listing" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="LDListing" inverseName="conversations" inverseEntity="LDListing"/>
-        <relationship name="messages" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDMessage"/>
-        <relationship name="tenant" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="LDTenant"/>
+        <relationship name="messages" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDMessage" inverseName="conversation" inverseEntity="LDMessage"/>
+        <relationship name="tenant" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="LDTenant" inverseName="conversations" inverseEntity="LDTenant"/>
     </entity>
     <entity name="LDListing" representedClassName="LDListing" syncable="YES" codeGenerationType="class">
         <attribute name="address" optional="YES" attributeType="String"/>
-        <attribute name="amenities" optional="YES" attributeType="Transformable"/>
+        <attribute name="amenities" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromDataTransformerName"/>
         <attribute name="bathrooms" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="bedrooms" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="buildingID" optional="YES" attributeType="String"/>
@@ -37,7 +37,7 @@
         <relationship name="conversations" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDConversation" inverseName="listing" inverseEntity="LDConversation"/>
         <relationship name="draftImages" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="DraftImage" inverseName="lDListing" inverseEntity="DraftImage"/>
         <relationship name="noticeTargets" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDNoticeTarget" inverseName="listing" inverseEntity="LDNoticeTarget"/>
-        <relationship name="scheduleTargets" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDScheduleEvent"/>
+        <relationship name="scheduleTargets" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDScheduleTarget" inverseName="listing" inverseEntity="LDScheduleTarget"/>
         <relationship name="tasks" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="LDTask" inverseName="listing" inverseEntity="LDTask"/>
         <relationship name="tenancies" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDTenancy" inverseName="listing" inverseEntity="LDTenancy"/>
     </entity>
@@ -95,14 +95,14 @@
         <attribute name="updatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="version" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="visibility" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <relationship name="pushedMessages" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="LDMessage"/>
+        <relationship name="pushedMessages" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="LDMessage" inverseName="linkedScheduleEvent" inverseEntity="LDMessage"/>
         <relationship name="targets" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDScheduleTarget" inverseName="scheduleEvent" inverseEntity="LDScheduleTarget"/>
     </entity>
     <entity name="LDScheduleTarget" representedClassName="LDScheduleTarget" syncable="YES" codeGenerationType="class">
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="scopeType" optional="YES" attributeType="String"/>
-        <relationship name="listing" optional="YES" maxCount="1" deletionRule="Deny" destinationEntity="LDListing"/>
+        <relationship name="listing" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="LDListing" inverseName="scheduleTargets" inverseEntity="LDListing"/>
         <relationship name="scheduleEvent" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="LDScheduleEvent" inverseName="targets" inverseEntity="LDScheduleEvent"/>
     </entity>
     <entity name="LDTask" representedClassName="LDTask" syncable="YES" codeGenerationType="class">
@@ -135,6 +135,7 @@
         <attribute name="updatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <relationship name="tasks" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="LDTask" inverseName="tenant" inverseEntity="LDTask"/>
         <relationship name="tenancies" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDTenancy" inverseName="tenant" inverseEntity="LDTenancy"/>
+        <relationship name="conversations" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="LDConversation" inverseName="tenant" inverseEntity="LDConversation"/>
     </entity>
     <entity name="TPreferences" representedClassName="TPreferences" syncable="YES" codeGenerationType="class">
         <attribute name="budgetMax" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>

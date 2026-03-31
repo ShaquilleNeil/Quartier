@@ -34,7 +34,7 @@ struct PersistenceController {
         } else {
             // Use a versioned store name so model changes don’t crash on existing installs (dev-friendly).
             let supportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            let storeURL = supportURL.appendingPathComponent("Quartier_v2.sqlite")
+            let storeURL = supportURL.appendingPathComponent("Quartier_v4.sqlite")
             description.url = storeURL
             description.setOption(true as NSNumber, forKey: NSMigratePersistentStoresAutomaticallyOption)
             description.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)

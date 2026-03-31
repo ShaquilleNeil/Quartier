@@ -11,6 +11,11 @@ import CoreData
 struct LandlordSchedule: View {
     @Environment(\.managedObjectContext) private var viewContext
 
+    private struct EditSheetItem: Identifiable {
+        let objectID: NSManagedObjectID
+        var id: String { objectID.uriRepresentation().absoluteString }
+    }
+
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \LDScheduleEvent.startAt, ascending: true)],
         animation: .default
@@ -19,6 +24,7 @@ struct LandlordSchedule: View {
 
     @State private var selectedDate: Date = Date()
     @State private var showNewEvent = false
+    @State private var editingSheet: EditSheetItem?
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
 
     private var eventsOnSelectedDay: [LDScheduleEvent] {
@@ -74,6 +80,25 @@ struct LandlordSchedule: View {
                                     title: event.title ?? "Event",
                                     subtitle: formatEventTime(event)
                                 )
+                                .overlay(alignment: .trailing) {
+                                    HStack(spacing: 10) {
+                                        Button {
+                                            editingSheet = EditSheetItem(objectID: event.objectID)
+                                        } label: {
+                                            Image(systemName: "pencil")
+                                                .foregroundStyle(primary)
+                                        }
+                                        .buttonStyle(.plain)
+
+                                        Button(role: .destructive) {
+                                            deleteEvent(event)
+                                        } label: {
+                                            Image(systemName: "trash")
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                    .padding(.trailing, 4)
+                                }
                             }
                         }
                     }
@@ -101,8 +126,23 @@ struct LandlordSchedule: View {
             .padding(.bottom, 18)
         }
         .sheet(isPresented: $showNewEvent) {
-            NewScheduleEventView()
+            NewScheduleEventView(onSaved: {
+                showNewEvent = false
+            })
+            .environment(\.managedObjectContext, viewContext)
+        }
+        .sheet(item: $editingSheet) { sheet in
+            if let event = try? viewContext.existingObject(with: sheet.objectID) as? LDScheduleEvent {
+                NewScheduleEventView(existingEvent: event, onSaved: {
+                    editingSheet = nil
+                })
                 .environment(\.managedObjectContext, viewContext)
+            } else {
+                Color.clear
+                    .onAppear {
+                        editingSheet = nil
+                    }
+            }
         }
     }
 
@@ -147,6 +187,15 @@ struct LandlordSchedule: View {
 
     private var cardBg: Color { Color(uiColor: .secondarySystemBackground) }
     private var border: Color { Color.primary.opacity(0.08) }
+
+    private func deleteEvent(_ event: LDScheduleEvent) {
+        do {
+            let service = ScheduleEventService(context: viewContext)
+            try service.deleteScheduleEvent(event)
+        } catch {
+            print("Delete schedule event failed:", error.localizedDescription)
+        }
+    }
 }
 
 #Preview {
