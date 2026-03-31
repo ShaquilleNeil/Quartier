@@ -39,7 +39,6 @@ class FirebaseManager: ObservableObject {
     @Published var favoriteIds: Set<String> = []
     
     // save to db
-
     func saveUser(
         uid: String,
         email: String,
@@ -172,6 +171,7 @@ class FirebaseManager: ObservableObject {
     
     func fetchAllListings(){
         db.collection("listings")
+            .whereField("isRented", isEqualTo: false)
             .getDocuments { snapshot, error in
                 
                 guard let documents = snapshot?.documents else { return }
