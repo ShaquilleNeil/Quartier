@@ -15,5 +15,6 @@ struct User: Identifiable, Equatable {
     let createdAt: Date
     let isActive: Bool
     let isRenting: Bool
+    let apartmentId: String?
 }
 

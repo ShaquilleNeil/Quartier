@@ -219,25 +219,26 @@ class CoreDataManager: ObservableObject {
     func deleteDraft(
         listingID: UUID,
         context: NSManagedObjectContext,
-        pushRemote: Bool = true
+        pushRemote: Bool = false
     ) {
-
-        let request = LDListing.fetchRequest()
+        let request: NSFetchRequest<LDListing> = LDListing.fetchRequest()
+        request.fetchLimit = 1
         request.predicate = NSPredicate(format: "id == %@", listingID as CVarArg)
 
         do {
-            let drafts = try context.fetch(request)
+            guard let item = try context.fetch(request).first else { return }
 
-            for draft in drafts {
-                context.delete(draft)
+            let shouldPushRemoteDelete =
+                pushRemote &&
+                !isApplyingRemoteChanges &&
+                item.status != "draft"
+
+            if shouldPushRemoteDelete {
+                sync.pushDelete(listing: item)
             }
 
+            context.delete(item)
             try context.save()
-
-            if pushRemote && !isApplyingRemoteChanges {
-                sync.pushDelete(listingID: listingID)
-            }
-
             loadListings(context)
 
         } catch {

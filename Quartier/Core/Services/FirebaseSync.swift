@@ -113,6 +113,9 @@ final class FirebaseSync {
     
     //pushUppsert
     func pushUpsert(listing: LDListing){
+        guard listing.status != "draft" else {
+            print("Skipping Firebase upsert for draft")
+            return }
         guard let id = listing.id?.uuidString else { return }
         let ref = db.collection(collectionPath).document(id)
         ref.setData(serialise(listing: listing), merge: true)
@@ -121,8 +124,14 @@ final class FirebaseSync {
     
     
     //push delete
-    func pushDelete(listingID: UUID) {
-        db.collection(collectionPath).document(listingID.uuidString).delete()
+    func pushDelete(listing: LDListing) {
+        guard listing.status != "draft" else {
+            print("Skipping Firebase delete for draft")
+            return
+        }
+        guard let id = listing.id else { return }
+        
+        db.collection(collectionPath).document(id.uuidString).delete()
     }
     
     
@@ -134,6 +143,12 @@ final class FirebaseSync {
         into context: NSManagedObjectContext
     )
     {
+        if let status = data["status"] as? String,
+              status == "draft" {
+               print("Skipping remote draft from Firebase")
+               return
+           }
+        
         guard let uuid = UUID(uuidString: docID) else { return }
 
         let request: NSFetchRequest<LDListing> = LDListing.fetchRequest()
@@ -151,7 +166,7 @@ final class FirebaseSync {
             item.id = uuid
         }
 
-        // Conflict guard
+     
         if let remoteUpdatedAt,
            let localUpdatedAt = item.updatedAt,
            localUpdatedAt > remoteUpdatedAt {
@@ -183,17 +198,22 @@ final class FirebaseSync {
     private func delete(
         docID: String,
         from context: NSManagedObjectContext
-    ){
+    ) {
         guard let uuid = UUID(uuidString: docID) else { return }
-        
+
         let request: NSFetchRequest<LDListing> = LDListing.fetchRequest()
         request.fetchLimit = 1
         request.predicate = NSPredicate(format: "id == %@", uuid as CVarArg)
-        
+
         if let item = try? context.fetch(request).first {
+
+            if item.status == "draft" {
+                print("Skipping delete: local draft")
+                return
+            }
+
             context.delete(item)
         }
-        
     }
     
     

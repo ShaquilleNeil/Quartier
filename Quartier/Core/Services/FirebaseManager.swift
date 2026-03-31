@@ -20,13 +20,15 @@ class FirebaseManager: ObservableObject {
     @Published var favoriteIds: Set<String> = []
     
     // save to db
-    func saveUser(uid: String, email: String, role: String, isRenting: Bool = false, completion: @escaping (Bool) -> Void) {
+    func saveUser(uid: String, email: String, role: String, isRenting: Bool = false, apartmentId: String? = nil, completion: @escaping (Bool) -> Void) {
         let userData: [String: Any] = [
             "id": uid,
             "email": email,
             "role": role,
             "isRenting": isRenting,
+            "apartmentId": apartmentId ?? "",
             "hasCompletedPreferences": false // Default to false for new users
+            
             
             
         ]
@@ -51,6 +53,7 @@ class FirebaseManager: ObservableObject {
                 let roleString = data["role"] as? String ?? "tenant"
                 let isRenting = data["isRenting"] as? Bool ?? false
                 let isActive = data["isActive"] as? Bool ?? true
+                let apartmentId = data["apartmentId"] as? String ?? ""
 
                 let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
 
@@ -62,7 +65,8 @@ class FirebaseManager: ObservableObject {
                     role: role,
                     createdAt: createdAt,
                     isActive: isActive,
-                    isRenting: isRenting
+                    isRenting: isRenting,
+                    apartmentId: apartmentId
                 )
                 DispatchQueue.main.async {
                     self.currentUser = user
@@ -245,7 +249,7 @@ class FirebaseManager: ObservableObject {
     }
     
 
-    func updateUser(uid: String, email: String, role: String, isRenting: Bool, hasCompletedPreferences: Bool ){
+    func updateUser(uid: String, email: String, role: String, isRenting: Bool, hasCompletedPreferences: Bool, apartmentId: String? ){
         db.collection("users")
             .document(uid)
             .updateData([
@@ -253,7 +257,8 @@ class FirebaseManager: ObservableObject {
                 "email": email,
                 "role": role,
                 "isRenting": isRenting,
-                "hasCompletedPreferences": hasCompletedPreferences
+                "hasCompletedPreferences": hasCompletedPreferences,
+                "apartmendId": apartmentId ?? ""
             ])
     }
     

@@ -22,6 +22,8 @@ private struct MyListingsView: View {
     @State private var isAddingListing: Bool = false
     @State private var selectedMode: ListingMode = .drafts
     @EnvironmentObject var firebase: FirebaseManager
+    @EnvironmentObject var coreDataManager: CoreDataManager
+    @Environment(\.managedObjectContext) var viewContext
 
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \LDListing.updatedAt, ascending: false)],
@@ -192,6 +194,19 @@ private struct MyListingsView: View {
                             Capsule()
                                 .fill(Color.orange.opacity(0.18))
                         )
+                    Button(role: .destructive) {
+                        if let id = item.id {
+                            coreDataManager.deleteDraft(
+                                listingID: id,
+                                context: viewContext
+                            )
+                        }
+                    } label: {
+                        Image(systemName: "trash")
+                            .resizable()
+                            .frame(width: 24, height: 24)
+                            .foregroundColor(.red)
+                    }
                 }
 
                 Text(formattedPrice(item.price) +
