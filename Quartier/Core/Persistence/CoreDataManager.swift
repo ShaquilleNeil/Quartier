@@ -55,8 +55,17 @@ class CoreDataManager: ObservableObject {
     }
     
     func loadListings(_ context: NSManagedObjectContext) {
-        let request = LDListing.fetchRequest()
-        
+        guard let currentUID = Auth.auth().currentUser?.uid else {
+            listings = []
+            return
+        }
+
+        let request: NSFetchRequest<LDListing> = LDListing.fetchRequest()
+        request.predicate = NSPredicate(format: "landLordID == %@", currentUID)
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "updatedAt", ascending: false)
+        ]
+
         do {
             listings = try context.fetch(request)
         } catch {
@@ -68,17 +77,19 @@ class CoreDataManager: ObservableObject {
         listingID: UUID,
         context: NSManagedObjectContext
     ) -> LDListing? {
-        
-        let request = LDListing.fetchRequest()
-        
+
+        guard let currentUID = Auth.auth().currentUser?.uid else { return nil }
+
+        let request: NSFetchRequest<LDListing> = LDListing.fetchRequest()
+        request.fetchLimit = 1
         request.predicate = NSPredicate(
-            format: "id == %@",
-            listingID as CVarArg
+            format: "id == %@ AND landLordID == %@",
+            listingID as CVarArg,
+            currentUID
         )
-        
+
         do {
-            let results = try context.fetch(request)
-            return results.first
+            return try context.fetch(request).first
         } catch {
             print("Failed to fetch draft: \(error)")
             return nil
@@ -160,19 +171,22 @@ class CoreDataManager: ObservableObject {
     func saveDraft(
         from listing: Listing,
         context: NSManagedObjectContext
-    )
-    {
+    ) {
+        guard let currentUID = Auth.auth().currentUser?.uid else {
+            print("No logged in user, cannot save draft")
+            return
+        }
+
         let existing = fetchDraft(listingID: listing.listingID, context: context)
-        
         let entity = existing ?? LDListing(context: context)
-        
+
         if entity.id == nil {
             entity.id = listing.listingID
             entity.createdAt = Date()
         }
-        
+
+        entity.landLordID = currentUID
         entity.buildingID = listing.buildingID
-        entity.landLordID = listing.landLordId
         entity.price = listing.price
         entity.bedrooms = Int16(listing.bedrooms)
         entity.bathrooms = Int16(listing.bathrooms)
@@ -184,34 +198,31 @@ class CoreDataManager: ObservableObject {
         entity.address = listing.address
         entity.isRented = listing.isRented
         entity.updatedAt = Date()
-        
         entity.amenities = listing.amenities as NSObject
-            
+
         if let oldImages = entity.draftImages as? Set<DraftImage> {
             for image in oldImages {
                 context.delete(image)
             }
         }
-        
+
         for (index, uiImage) in listing.images.enumerated() {
-            
             guard let data = uiImage.jpegData(compressionQuality: 0.8) else { continue }
-            
+
             let draftImage = DraftImage(context: context)
             draftImage.id = UUID()
             draftImage.orderIndex = Int16(index)
             draftImage.imageData = data
             draftImage.lDListing = entity
         }
-        
+
         saveContext(context)
-        
+
         if !isApplyingRemoteChanges {
             sync.pushUpsert(listing: entity)
         }
-        
+
         loadListings(context)
-        
     }
     
     
@@ -221,9 +232,15 @@ class CoreDataManager: ObservableObject {
         context: NSManagedObjectContext,
         pushRemote: Bool = false
     ) {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return }
+
         let request: NSFetchRequest<LDListing> = LDListing.fetchRequest()
         request.fetchLimit = 1
-        request.predicate = NSPredicate(format: "id == %@", listingID as CVarArg)
+        request.predicate = NSPredicate(
+            format: "id == %@ AND landLordID == %@",
+            listingID as CVarArg,
+            currentUID
+        )
 
         do {
             guard let item = try context.fetch(request).first else { return }
@@ -242,7 +259,7 @@ class CoreDataManager: ObservableObject {
             loadListings(context)
 
         } catch {
-            print("Failed to delete draft:", error)
+            print("Failed to delete draft: \(error)")
         }
     }
     

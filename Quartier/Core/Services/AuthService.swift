@@ -30,7 +30,7 @@ class AuthService: ObservableObject {
     init(firebase: FirebaseManager) {
         self.firebase = firebase
         
-        // 🔥 Reactive auth listener (canonical Firebase pattern)
+        
         Auth.auth().addStateDidChangeListener { [weak self] _, user in
             guard let self else { return }
 
@@ -41,7 +41,7 @@ class AuthService: ObservableObject {
 
                 if let user = user {
                     self.attachUserDocumentListener(uid: user.uid)
-                    self.firebase.fetchUser(uid: user.uid) { _ in }
+//                    self.firebase.fetchUser(uid: user.uid) { _ in }
                 } else {
                     self.resetState()
                 }
@@ -59,8 +59,7 @@ class AuthService: ObservableObject {
                 return
             }
 
-            // 🔥 No manual fetch needed
-            // Auth listener will handle Firestore hydration
+   
 
             completion(true)
         }
@@ -97,19 +96,20 @@ class AuthService: ObservableObject {
     
     // MARK: - Fetch Firestore user document
     
-    func fetchUserData() {
-        guard let uid = userSession?.uid else { return }
-
-        firebase.fetchUser(uid: uid) { [weak self] data in
-            guard let self else { return }
-
-            DispatchQueue.main.async {
-                if let data {
-                    self.applyUserDocument(data)
-                }
-            }
-        }
-    }
+//    func fetchUserData() {
+//        guard let uid = userSession?.uid else { return }
+//
+//        firebase.fetchUser(uid: uid) { [weak self] data in
+//            guard let self else { return }
+//
+//            DispatchQueue.main.async {
+//                if let data {
+//                    self.applyUserDocument(data)
+//                }
+//            }
+//        }
+//    }
+  
 
     private func attachUserDocumentListener(uid: String) {
         userDocListener = db.collection("users").document(uid).addSnapshotListener { [weak self] snapshot, _ in

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SDWebImageSwiftUI
+import FirebaseAuth
 
 struct LandlordListings: View {
     var body: some View {
@@ -17,6 +18,9 @@ struct LandlordListings: View {
 private struct MyListingsView: View {
 
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
+    private var currentUID: String {
+        Auth.auth().currentUser?.uid ?? ""
+    }
 
     @State private var searchText: String = ""
     @State private var isAddingListing: Bool = false
@@ -36,16 +40,20 @@ private struct MyListingsView: View {
         case published = "Published"
         case rented = "Rented"
     }
+    
+    private var userDraftListings: [LDListing] {
+        draftListings.filter { $0.landLordID == currentUID }
+    }
 
     /// Drafts that are not marked rented (rented drafts appear under Rented).
     private var draftRows: [LDListing] {
-        draftListings.filter { !$0.isRented }
+        userDraftListings.filter { !$0.isRented }
     }
 
     /// Rented listings saved only in Core Data / not yet merged into the landlord’s Firebase query result.
     private var rentedDraftsNotOnFirebase: [LDListing] {
         let remoteIds = Set(firebase.firebaseListings.map(\.id))
-        return draftListings.filter { listing in
+        return userDraftListings.filter { listing in
             guard listing.isRented, let id = listing.id else { return false }
             return !remoteIds.contains(id.uuidString)
         }
@@ -115,7 +123,9 @@ private struct MyListingsView: View {
                     EmptyView()
                 }
             }
-        }.onAppear{firebase.fetchListingsLandord()}
+        }.onAppear{
+            firebase.fetchListingsLandlord()
+        }
     }
 
     // MARK: Draft View (Core Data)

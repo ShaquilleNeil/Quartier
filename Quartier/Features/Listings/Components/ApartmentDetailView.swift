@@ -352,28 +352,32 @@ struct MapCard: View {
     }
 }
 
+extension Listing {
+    static var mock: Listing {
+
+        var listing = Listing(
+            buildingID: "b1",
+            landLordId: "l1",
+            price: 1800,
+            bedrooms: 2,
+            bathrooms: 1
+        )
+
+        // Set remaining properties AFTER init
+        listing.address = "123 Main St"
+        listing.squareFeet = 900
+        listing.amenities = ["Washer", "Balcony"]
+        listing.existingImageURLs = []
+        listing.status = .published
+        listing.isRented = false
+
+        return listing
+    }
+}
+
 
 #Preview {
-    // Construct a mock Listing by decoding JSON, since Listing likely only exposes init(from:)
-    let json = """
-    {
-      "price": 1800,
-      "address": "123 Main St, Montreal, QC",
-      "bedrooms": 2,
-      "bathrooms": 1,
-      "amenities": ["Washer/Dryer", "Dishwasher", "Balcony"],
-      "existingImageURLs": [
-        "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2"
-      ]
-    }
-    """
-
-    let mock: Listing = {
-        let data = Data(json.utf8)
-        return try! JSONDecoder().decode(Listing.self, from: data)
-    }()
-
-    return ApartmentDetailView(listing: mock)
+    ApartmentDetailView(listing: .mock)
         .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
         .environmentObject(FirebaseManager())
 }

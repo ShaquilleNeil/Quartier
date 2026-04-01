@@ -5,20 +5,27 @@
 
 import SwiftUI
 import FirebaseAuth
+import UniformTypeIdentifiers
 
 struct TenantProfile: View {
     @EnvironmentObject var authService: AuthService
+    @EnvironmentObject var firebaseManager: FirebaseManager
+
     @State private var showingPreferences = false
-    
+    @State private var showDocumentPicker = false
+    @State private var selectedDocument: DocumentType?
+    @State private var uploadedDocs: [DocumentType: Bool] = [:]
+    @State private var showOptions = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    
-                    // MARK: Profile Header
-                    ProfileHeaderView(userEmail: authService.userSession?.email ?? "Tenant User")
-                    
-                    // MARK: Edit Button
+
+                    ProfileHeaderView(
+                        userEmail: authService.userSession?.email ?? "Tenant User"
+                    )
+
                     Button(action: {}) {
                         Text("Edit Profile")
                             .font(.headline)
@@ -28,19 +35,31 @@ struct TenantProfile: View {
                             .background(Color.blue)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
-                    
-                    // MARK: Search Preferences
-                    SearchPreferencesCard(onUpdate: {
+
+                    SearchPreferencesCard {
                         showingPreferences = true
-                    })
-                    
-                    // MARK: Documents
-                    DocumentsSection()
-                    
-                    // MARK: Account Settings
-                    AccountSettingsSection(onLogout: {
+                    }
+
+                    DocumentsSection(uploadedDocs: uploadedDocs) { type in
+                        selectedDocument = type
+
+                        if uploadedDocs[type] == true {
+                            showOptions = true
+                        } else {
+                            showDocumentPicker = true
+                        }
+                    }
+
+                    Button(action: {
                         authService.signOut()
-                    })
+                    }) {
+                        Text("Logout")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(width: 200, height: 50)
+                            .background(Color.red)
+                            .clipShape(RoundedRectangle(cornerRadius: 15))
+                    }
                 }
                 .padding()
             }
@@ -49,6 +68,45 @@ struct TenantProfile: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingPreferences) {
                 TenantPreferencesView()
+            }
+            .fileImporter(
+                isPresented: $showDocumentPicker,
+                allowedContentTypes: [.pdf, .image],
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    guard let fileURL = urls.first else { return }
+                    guard let type = selectedDocument else { return }
+
+                    print("Selected:", fileURL)
+
+                    firebaseManager.uploadDocument(fileURL: fileURL, type: type)
+
+                    // No listener version: update local UI immediately
+                    uploadedDocs[type] = true
+
+                case .failure(let error):
+                    print("Error:", error)
+                }
+            }
+            .confirmationDialog("Document Options", isPresented: $showOptions) {
+                Button("View") {
+                    print("View current document")
+                }
+
+                Button("Replace") {
+                    showDocumentPicker = true
+                }
+
+                Button("Delete", role: .destructive) {
+                    guard let type = selectedDocument else { return }
+
+                    firebaseManager.deleteDocument(type: type)
+
+                    // No listener version: update local UI immediately
+                    uploadedDocs[type] = false
+                }
             }
         }
     }
@@ -59,8 +117,8 @@ struct TenantProfile: View {
 //////////////////////////////////////////////////////////////////
 
 private struct ProfileHeaderView: View {
-    var userEmail: String
-    
+    let userEmail: String
+
     var body: some View {
         VStack(spacing: 12) {
             ZStack(alignment: .bottomTrailing) {
@@ -74,7 +132,7 @@ private struct ProfileHeaderView: View {
                             .padding(30)
                             .foregroundColor(.gray)
                     )
-                
+
                 Circle()
                     .fill(Color.blue)
                     .frame(width: 32, height: 32)
@@ -84,14 +142,14 @@ private struct ProfileHeaderView: View {
                             .font(.caption)
                     )
             }
-            
+
             Text(userEmail)
                 .font(.title3.bold())
-            
+
             Text("Verified Tenant • Member since 2026")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-            
+
             HStack(spacing: 12) {
                 Badge(text: "ID Verified")
                 Badge(text: "Income Verified")
@@ -102,11 +160,12 @@ private struct ProfileHeaderView: View {
 
 private struct Badge: View {
     let text: String
-    
+
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundColor(.blue)
+
             Text(text)
                 .font(.caption)
                 .foregroundColor(.blue)
@@ -123,8 +182,8 @@ private struct Badge: View {
 //////////////////////////////////////////////////////////////////
 
 private struct SearchPreferencesCard: View {
-    var onUpdate: () -> Void
-    
+    let onUpdate: () -> Void
+
     var body: some View {
         Button(action: onUpdate) {
             HStack {
@@ -132,14 +191,14 @@ private struct SearchPreferencesCard: View {
                     Text("Housing Preferences")
                         .font(.headline)
                         .foregroundColor(.primary)
-                    
+
                     Text("Edit your budget, location, and needs")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
-                
+
                 Spacer()
-                
+
                 Image(systemName: "slider.horizontal.3")
                     .font(.title2)
                     .foregroundColor(.blue)
@@ -158,70 +217,149 @@ private struct SearchPreferencesCard: View {
     }
 }
 
+//////////////////////////////////////////////////////////////////
+// MARK: Documents Section
+//////////////////////////////////////////////////////////////////
+
 private struct DocumentsSection: View {
+    let uploadedDocs: [DocumentType: Bool]
+    let onSelect: (DocumentType) -> Void
+
+    private func status(for type: DocumentType) -> DocumentStatus {
+        if uploadedDocs[type] == true {
+            return .pending
+        } else {
+            return .none
+        }
+    }
+
+    private var completedCount: Int {
+        uploadedDocs.values.filter { $0 }.count
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("My Documents")
                     .font(.headline)
+
                 Spacer()
-                Text("2/3 Completed")
+
+                Text("\(completedCount)/3 Completed")
                     .foregroundColor(.blue)
                     .font(.subheadline)
             }
-            DocumentRow(title: "Government ID", status: "Verified", color: .green)
-            DocumentRow(title: "Recent Paystubs", status: "Updated 2 days ago", color: .green)
-            DocumentRow(title: "Tax Returns (W2)", status: "Action Required", color: .orange)
+
+            DocumentRow(
+                title: "Government ID",
+                status: status(for: .id)
+            ) {
+                onSelect(.id)
+            }
+
+            DocumentRow(
+                title: "Recent Paystubs",
+                status: status(for: .paystub)
+            ) {
+                onSelect(.paystub)
+            }
+
+            DocumentRow(
+                title: "Tax Returns (W2)",
+                status: status(for: .tax)
+            ) {
+                onSelect(.tax)
+            }
         }
     }
 }
+
+//////////////////////////////////////////////////////////////////
+// MARK: Document Row
+//////////////////////////////////////////////////////////////////
 
 private struct DocumentRow: View {
     let title: String
-    let status: String
-    let color: Color
-    private var isGoodStatus: Bool {
-        let lower = status.lowercased()
-        return lower.contains("verified") || lower.contains("updated")
-    }
+    let status: DocumentStatus
+    let onTap: () -> Void
+
     var body: some View {
-        HStack {
-            RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.15)).frame(width: 44, height: 44).overlay(Image(systemName: "doc.fill"))
-            VStack(alignment: .leading) {
-                Text(title).font(.headline)
-                Text(status).font(.subheadline).foregroundColor(color)
+        Button(action: onTap) {
+            HStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.gray.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Image(systemName: "doc.fill")
+                    )
+
+                VStack(alignment: .leading) {
+                    Text(title)
+                        .font(.headline)
+
+                    Text(status.displayText)
+                        .font(.subheadline)
+                        .foregroundColor(status.color)
+                }
+
+                Spacer()
+
+                Circle()
+                    .fill(status.color)
+                    .frame(width: 24, height: 24)
+                    .overlay {
+                        Image(systemName: status.icon)
+                            .foregroundStyle(.white)
+                    }
             }
-            Spacer()
-            Circle().fill(color).frame(width: 24, height: 24).overlay{ Image(systemName: isGoodStatus ? "checkmark" : "xmark.circle").foregroundStyle(.white) }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemBackground))
+            )
+            .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
         }
-        .padding().background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground))).shadow(color: .black.opacity(0.05), radius: 8, y: 4)
+        .buttonStyle(.plain)
     }
 }
 
-private struct AccountSettingsSection: View {
-    var onLogout: () -> Void
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Account Settings").font(.headline)
-            SettingsRow(title: "Notifications", icon: "bell.fill")
-            SettingsRow(title: "Privacy & Security", icon: "lock.fill")
-            Button("Log Out") { onLogout() }.foregroundColor(.red).padding(.top, 8)
+//////////////////////////////////////////////////////////////////
+// MARK: Document Status UI Mapping
+//////////////////////////////////////////////////////////////////
+
+extension DocumentStatus {
+    var displayText: String {
+        switch self {
+        case .none:
+            return "Not yet uploaded"
+        case .pending:
+            return "Uploaded"
+        case .verified:
+            return "Verified"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .none:
+            return .red
+        case .pending:
+            return .green
+        case .verified:
+            return .green
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .none:
+            return "xmark.circle"
+        case .pending, .verified:
+            return "checkmark"
         }
     }
 }
 
-private struct SettingsRow: View {
-    let title: String; let icon: String
-    var body: some View {
-        HStack {
-            Image(systemName: icon).foregroundColor(.gray)
-            Text(title)
-            Spacer()
-            Image(systemName: "chevron.right").foregroundColor(.gray)
-        }
-        .padding().background(RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground))).shadow(color: .black.opacity(0.05), radius: 6, y: 3)
-    }
-}
 #Preview {
     let firebase = FirebaseManager()
     let auth = AuthService(firebase: firebase)

@@ -130,6 +130,7 @@ struct ListingFormView: View {
                         publishListing()
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(firebase.currentUser == nil)
                 }
             }
             .padding()
@@ -305,78 +306,71 @@ struct FormCard: ViewModifier {
 extension ListingFormView {
 
     func publishListing() {
+        
+        guard let uid = firebase.currentUser?.id else {
+            publishError = "User not loaded. Please wait."
+            return
+        }
+        
         listing.landLordId = firebase.currentUser?.id ?? ""
         isPublishing = true
 
         let wasDraft = (listing.status == .draft)
         listing.status = .published
 
+       
         if isEditing {
 
             Task {
                 do {
-
-                    // GEOCODE ADDRESS
+                    // GEOCODE
                     if listing.latitude == nil || listing.longitude == nil {
                         let coord = try await geocodeAddress(listing.address)
                         listing.latitude = coord.latitude
                         listing.longitude = coord.longitude
                     }
 
-                    let newURLs = try await firebase.uploadListingImages(
+                    
+                    firebase.uploadListingImages(
                         listingId: listing.listingID,
                         images: listing.images
-                    )
+                    ) { newURLs in
 
-                    let allURLs = listing.existingImageURLs + newURLs
+                        let allURLs = listing.existingImageURLs + newURLs
 
+                        DispatchQueue.main.async {
 
+                            if wasDraft {
+                                coreDataManager.deleteDraft(
+                                    listingID: listing.listingID,
+                                    context: viewContext,
+                                    pushRemote: false
+                                )
+                            }
 
-//                    try await saveListingAndWait(allURLs)
-                    
-                    await MainActor.run {
-                        if wasDraft {
-                            coreDataManager.deleteDraft(
-                                listingID: listing.listingID,
-                                context: viewContext,
-                                pushRemote: false
+                            firebase.saveListing(
+                                listingId: listing.listingID,
+                                buildingId: listing.buildingID,
+                                landLordId: listing.landLordId,
+                                price: listing.price,
+                                squareFeet: listing.squareFeet,
+                                latitude: listing.latitude ?? 0,
+                                longitude: listing.longitude ?? 0,
+                                bedrooms: listing.bedrooms,
+                                bathrooms: listing.bathrooms,
+                                amenities: listing.amenities,
+                                status: listing.status,
+                                rules: listing.rules,
+                                imageURLs: allURLs,
+                                address: listing.address,
+                                isRented: listing.isRented
                             )
+
+                            firebase.fetchListingsLandlord()
+
+                            isPublishing = false
+                            showPublishSuccess = true
                         }
-                        
-                        firebase.saveListing(
-                            listingId: listing.listingID,
-                            buildingId: listing.buildingID,
-                            landLordId: listing.landLordId,
-                            price: listing.price,
-                            squareFeet: listing.squareFeet,
-                            latitude: listing.latitude ?? 0,
-                            longitude: listing.longitude ?? 0,
-                            bedrooms: listing.bedrooms,
-                            bathrooms: listing.bathrooms,
-                            amenities: listing.amenities,
-                            status: listing.status,
-                            rules: listing.rules,
-                            imageURLs: allURLs,
-                            address: listing.address,
-                            isRented: listing.isRented
-                        )
-                        
-                        if wasDraft {
-                            coreDataManager.deleteDraft(
-                                listingID: listing.listingID,
-                                context: viewContext,
-                                pushRemote: false
-                            )
-                        }
-                        
-
-                   
-
-                        firebase.fetchListingsLandord()
-//                        coreDataManager.deleteDraft(listingID: listing.listingID, context: viewContext)
-
-                        isPublishing = false
-                        showPublishSuccess = true
                     }
 
                 } catch {
@@ -390,53 +384,55 @@ extension ListingFormView {
             return
         }
 
-        // NEW LISTING FLOW
+       
         Task {
             do {
-
-                // GEOCODE ADDRESS
+                // GEOCODE
                 if listing.latitude == nil || listing.longitude == nil {
                     let coord = try await geocodeAddress(listing.address)
                     listing.latitude = coord.latitude
                     listing.longitude = coord.longitude
                 }
 
-                let urls = try await firebase.uploadListingImages(
+                
+                firebase.uploadListingImages(
                     listingId: listing.listingID,
                     images: listing.images
-                )
+                ) { urls in
 
-                firebase.saveListing(
-                    listingId: listing.listingID,
-                    buildingId: listing.buildingID,
-                    landLordId: listing.landLordId,
-                    price: listing.price,
-                    squareFeet: listing.squareFeet,
-                    latitude: listing.latitude ?? 0,
-                    longitude: listing.longitude ?? 0,
-                    bedrooms: listing.bedrooms,
-                    bathrooms: listing.bathrooms,
-                    amenities: listing.amenities,
-                    status: listing.status,
-                    rules: listing.rules,
-                    imageURLs: urls,
-                    address: listing.address,
-                    isRented: listing.isRented
-                )
+                    DispatchQueue.main.async {
 
-                await MainActor.run {
-                    if wasDraft {
-                        coreDataManager.deleteDraft(
-                            listingID: listing.listingID,
-                            context: viewContext,
-                            pushRemote: false
+                        firebase.saveListing(
+                            listingId: listing.listingID,
+                            buildingId: listing.buildingID,
+                            landLordId: listing.landLordId,
+                            price: listing.price,
+                            squareFeet: listing.squareFeet,
+                            latitude: listing.latitude ?? 0,
+                            longitude: listing.longitude ?? 0,
+                            bedrooms: listing.bedrooms,
+                            bathrooms: listing.bathrooms,
+                            amenities: listing.amenities,
+                            status: listing.status,
+                            rules: listing.rules,
+                            imageURLs: urls,
+                            address: listing.address,
+                            isRented: listing.isRented
                         )
+
+                        if wasDraft {
+                            coreDataManager.deleteDraft(
+                                listingID: listing.listingID,
+                                context: viewContext,
+                                pushRemote: false
+                            )
+                        }
+
+                        firebase.fetchListingsLandlord()
+
+                        isPublishing = false
+                        showPublishSuccess = true
                     }
-
-                    firebase.fetchListingsLandord()
-
-                    isPublishing = false
-                    showPublishSuccess = true
                 }
 
             } catch {
@@ -449,6 +445,11 @@ extension ListingFormView {
     }
 
     func saveDraftListing() {
+
+        guard let uid = firebase.currentUser?.id else {
+                print("❌ No user loaded")
+                return
+            }
         listing.landLordId = firebase.currentUser?.id ?? ""
         coreDataManager.saveDraft(from: listing, context: viewContext)
     }

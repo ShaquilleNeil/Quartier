@@ -23,6 +23,8 @@ struct FirebaseTenantPickerItem: Identifiable, Hashable {
     }
 }
 
+
+
 class FirebaseManager: ObservableObject {
     /// Firestore may return Bool or NSNumber for boolean fields.
     static func firestoreBool(_ value: Any?) -> Bool {
@@ -37,6 +39,51 @@ class FirebaseManager: ObservableObject {
     private let storage = Storage.storage()
     @Published var allListings: [Listing] = []
     @Published var favoriteIds: Set<String> = []
+    
+    init() {
+           listenToAuth()
+       }
+    
+    
+    private func listenToAuth() {
+        Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            guard let self = self else { return }
+
+            if let user {
+                print("Auth user:", user.uid)
+
+                self.fetchUser(uid: user.uid) { fetchedUser in
+                    
+                    if fetchedUser == nil {
+                        print("No Firestore user → creating one")
+
+                        // Create user in Firestore
+                        self.saveUser(
+                            uid: user.uid,
+                            email: user.email ?? "",
+                            role: "tenant" // or "landlord" depending on flow
+                        ) { success in
+                            if success {
+                                print("User created in Firestore")
+
+                                // Fetch AGAIN after creating
+                                self.fetchUser(uid: user.uid) { _ in }
+                            } else {
+                                print("Failed to create user")
+                            }
+                        }
+                    }
+                }
+
+            } else {
+                print("❌ No auth user")
+
+                DispatchQueue.main.async {
+                    self.currentUser = nil
+                }
+            }
+        }
+    }
     
     // save to db
     func saveUser(
@@ -71,104 +118,36 @@ class FirebaseManager: ObservableObject {
         }
     }
     
-    // get from db
-    func fetchUser(uid: String, completion: @escaping ([String: Any]?) -> Void) {
-        db.collection("users").document(uid).getDocument { snapshot, error in
-            if let data = snapshot?.data() {
-                // Map Firestore data to our User model if possible
-                let id = data["id"] as? String ?? uid
-                let email = data["email"] as? String ?? ""
-                let roleString = data["role"] as? String ?? "tenant"
-                let isRenting = data["isRenting"] as? Bool ?? false
-                let isActive = data["isActive"] as? Bool ?? true
-                let apartmentId = data["apartmentId"] as? String ?? ""
 
-                let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
-
-                let role: UserType = roleString.lowercased() == "landlord" ? .landlord : .tenant
-
-                let user = User(
-                    id: id,
-                    email: email,
-                    role: role,
-                    createdAt: createdAt,
-                    isActive: isActive,
-                    isRenting: isRenting,
-                    apartmentId: apartmentId
-                )
-                DispatchQueue.main.async {
-                    self.currentUser = user
-                }
-                completion(data)
-            } else {
-                completion(nil)
-            }
-        }
-    }
     
-    func fetchListingsLandord(){
-        // Use Auth uid — `currentUser` from Firestore may still be nil right after sign-in.
-        guard let landLordId = Auth.auth().currentUser?.uid else { return }
-        let collection = db.collection("listings")
-        let group = DispatchGroup()
-        var mergedById: [String: RemoteListing] = [:]
+    //MARK: SHAQUILLE
+    func fetchListingsLandlord() {
+        guard let landlordId = Auth.auth().currentUser?.uid else { return }
 
-        func merge(_ docs: [QueryDocumentSnapshot]) {
-            for doc in docs {
-                if let item = Self.parseRemoteListing(document: doc) {
-                    mergedById[item.id] = item
-                }
-            }
-        }
+        db.collection("listings")
+            .whereField("landLordId", isEqualTo: landlordId)
+            .getDocuments { snapshot, error in
+                
+            
 
-        group.enter()
-        collection.whereField("landLordId", isEqualTo: landLordId).getDocuments { snapshot, error in
-            if let error = error {
-                print("Error fetching landlord listings (landLordId):", error)
-            } else {
-                merge(snapshot?.documents ?? [])
-            }
-            group.leave()
-        }
-
-        // Backward compatibility: some docs may use landlordId (lowercase L in middle).
-        group.enter()
-        collection.whereField("landlordId", isEqualTo: landLordId).getDocuments { snapshot, error in
-            if let error = error {
-                print("Error fetching landlord listings (landlordId):", error)
-            } else {
-                merge(snapshot?.documents ?? [])
-            }
-            group.leave()
-        }
-
-        group.notify(queue: .main) {
-            let merged = Array(mergedById.values)
-                .sorted { $0.updatedAt > $1.updatedAt }
-            if !merged.isEmpty {
-                self.firebaseListings = merged
-                return
-            }
-
-            // Fallback: in some projects/rules setups, equality queries may return empty unexpectedly.
-            // Fetch all visible listings and filter by owner on client side.
-            collection.getDocuments { snapshot, error in
                 if let error = error {
-                    print("Fallback fetch listings failed:", error)
-                    self.firebaseListings = []
+                    print("Error fetching listings:", error.localizedDescription)
                     return
                 }
-                let filtered = (snapshot?.documents ?? [])
-                    .compactMap { Self.parseRemoteListing(document: $0) }
-                    .filter { item in
-                        item.landlordId == landLordId
-                    }
-                    .sorted { $0.updatedAt > $1.updatedAt }
-                self.firebaseListings = filtered
+
+                guard let documents = snapshot?.documents else { return }
+
+                let listings = documents.compactMap {
+                    Self.parseRemoteListing(document: $0)
+                }
+                .sorted { $0.updatedAt > $1.updatedAt }
+
+                DispatchQueue.main.async {
+                    self.firebaseListings = listings
+                }
             }
-        }
     }
-    
+    //MARK: -------------------------
     func fetchAllListings(){
         db.collection("listings")
             .whereField("isRented", isEqualTo: false)
@@ -226,26 +205,51 @@ class FirebaseManager: ObservableObject {
     
     func uploadListingImages(
         listingId: UUID,
-        images:[UIImage]
-    ) async throws -> [String]
-    {
+        images: [UIImage],
+        completion: @escaping ([String]) -> Void
+    ) {
         var urls: [String] = []
-        
-        for (index, image) in images.enumerated(){
-            guard let data = image.jpegData(compressionQuality: 0.8) else { continue }
-            
-            let ref = storage.reference().child("listings/\(listingId.uuidString)/image_\(index).jpg")
-            
-            _ = try await ref.putDataAsync(data)
-            let downloadURL = try await ref.downloadURL()
-            
-            urls.append(downloadURL.absoluteString)
-            
-            
+        var uploadedCount = 0
+
+        let total = images.count
+
+        // edge case: no images
+        if total == 0 {
+            completion([])
+            return
         }
-        return urls
+
+        for (index, image) in images.enumerated() {
+
+            guard let data = image.jpegData(compressionQuality: 0.8) else {
+                uploadedCount += 1
+                continue
+            }
+
+            let ref = storage.reference()
+                .child("listings/\(listingId.uuidString)/image_\(index).jpg")
+
+            ref.putData(data, metadata: nil) { _, error in
+                if let error = error {
+                    print("Upload error:", error.localizedDescription)
+                    uploadedCount += 1
+                    return
+                }
+
+                ref.downloadURL { url, _ in
+                    if let url {
+                        urls.append(url.absoluteString)
+                    }
+
+                    uploadedCount += 1
+
+                    if uploadedCount == total {
+                        completion(urls)
+                    }
+                }
+            }
+        }
     }
-    
     
     func saveListing(
         listingId: UUID,
@@ -307,7 +311,7 @@ class FirebaseManager: ObservableObject {
                 "role": role,
                 "isRenting": isRenting,
                 "hasCompletedPreferences": hasCompletedPreferences,
-                "apartmendId": apartmentId ?? ""
+                "apartmentId": apartmentId ?? ""
             ])
     }
     
@@ -387,23 +391,77 @@ class FirebaseManager: ObservableObject {
         }
     }
     
-    func fetchUserFavorites(){
+    func fetchUser(uid: String, completion: @escaping (User?) -> Void) {
+        db.collection("users").document(uid).getDocument { snapshot, error in
+            guard let data = snapshot?.data() else {
+                completion(nil)
+                return
+            }
+
+            let id = data["id"] as? String ?? uid
+            let email = data["email"] as? String ?? ""
+            let roleString = data["role"] as? String ?? "tenant"
+            let isRenting = data["isRenting"] as? Bool ?? false
+            let isActive = data["isActive"] as? Bool ?? true
+            let apartmentId = data["apartmentId"] as? String ?? ""
+
+            let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+
+            let role: UserType = roleString.lowercased() == "landlord" ? .landlord : .tenant
+
+            let user = User(
+                id: id,
+                email: email,
+                role: role,
+                createdAt: createdAt,
+                isActive: isActive,
+                isRenting: isRenting,
+                apartmentId: apartmentId
+            )
+
+            DispatchQueue.main.async {
+                self.currentUser = user
+                completion(user)
+            }
+        }
+    }
+    
+    func fetchCurrentUserRent(uid: String, completion: @escaping (Double?) -> Void) {
+        fetchUser(uid: uid) { user in
+            guard let user else {
+                completion(nil)
+                return
+            }
+
+            guard user.isRenting,
+                  let apartmentId = user.apartmentId,
+                  !apartmentId.isEmpty else {
+                completion(nil)
+                return
+            }
+
+            self.fetchListingById(listingId: apartmentId) { listing in
+                completion(listing?.price)
+            }
+        }
+    }
+    
+    
+    func fetchUserFavorites() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-        
+
         db.collection("users")
             .document(uid)
             .collection("favorites")
-            .getDocuments {
-                snapshot, _ in
+            .getDocuments { snapshot, _ in
                 
                 let ids = snapshot?.documents.map { $0.documentID } ?? []
-                
+
                 DispatchQueue.main.async {
                     self.favoriteIds = Set(ids)
                 }
             }
     }
-    
     //MARK: Save Preferences
     
     func savePreferencesFS(preferences: Preferences) {
@@ -628,7 +686,8 @@ class FirebaseManager: ObservableObject {
         tenantUid: String,
         tenantUserData: [String: Any],
         completion: @escaping (Result<Void, Error>) -> Void
-    ) {
+    )
+    {
         guard let landlordUid = Auth.auth().currentUser?.uid else {
             completion(.failure(Self.assignError("You must be signed in as a landlord.")))
             return
@@ -726,7 +785,8 @@ class FirebaseManager: ObservableObject {
         emailLower: String,
         rawTrimmed: String,
         completion: @escaping (String?, [String: Any]?, Error?) -> Void
-    ) {
+    )
+    {
         db.collection("users")
             .whereField("emailLowercase", isEqualTo: emailLower)
             .limit(to: 1)
@@ -803,5 +863,91 @@ class FirebaseManager: ObservableObject {
             updatedAt: updatedAt
         )
     }
+    
+    
+    
+    
+    
+    
+    func uploadDocument(fileURL: URL, type: DocumentType) {
+
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+
+        let storageRef = Storage.storage().reference()
+            .child("users/\(uid)/documents/\(type.rawValue).pdf")
+
+        storageRef.putFile(from: fileURL) { _, error in
+            if let error = error {
+                print("Upload error:", error)
+                return
+            }
+
+            storageRef.downloadURL { url, error in
+                
+                if let error = error {
+                    print("Download URL error:", error)
+                    return
+                }
+
+                guard let downloadURL = url else { return }
+
+                let db = Firestore.firestore()
+
+                db.collection("users")
+                    .document(uid)
+                    .collection("documents")
+                    .document(type.rawValue)
+                    .setData([
+                        "type": type.rawValue,
+                        "url": downloadURL.absoluteString,
+                        "status": DocumentStatus.pending.rawValue,
+                        "createdAt": Timestamp(),
+                        "updatedAt": Timestamp()
+                    ])
+            }
+        }
+    }
+    
+    
+    
+    func deleteDocument(type: DocumentType) {
+
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+
+        let storageRef = Storage.storage().reference()
+            .child("users/\(uid)/documents/\(type.rawValue).pdf")
+
+ 
+        storageRef.delete { error in
+            if let error = error {
+                print("Storage delete error:", error)
+                return
+            }
+
+        
+            let db = Firestore.firestore()
+
+            db.collection("users")
+                .document(uid)
+                .collection("documents")
+                .document(type.rawValue)
+                .delete { error in
+                    if let error = error {
+                        print("Firestore delete error:", error)
+                    } else {
+                        print("Document deleted successfully")
+                    }
+                }
+        }
+    }
+    
+    
+    
 }
+
+
+
+
+
+
 

@@ -20,11 +20,11 @@ struct TenantSaved: View {
                 ]
 
                 LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(firebase.allListings) { apartment in
-                        ApartmentCard(listing: apartment
-                        )
-                    }
-                }
+                    ForEach(firebase.allListings.filter {
+                        firebase.favoriteIds.contains($0.listingID.uuidString)
+                    }) { apartment in
+                        ApartmentCard(listing: apartment)
+                    }                }
                 .padding(.top)
 
             }
