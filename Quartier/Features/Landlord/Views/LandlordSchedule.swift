@@ -2,19 +2,13 @@
 //  LandlordSchedule.swift
 //  Quartier
 //
-//  Created by Shaquille O Neil on 2026-01-29.
-//
 
 import SwiftUI
 import CoreData
+import FirebaseFirestore
 
 struct LandlordSchedule: View {
     @Environment(\.managedObjectContext) private var viewContext
-
-    private struct EditSheetItem: Identifiable {
-        let objectID: NSManagedObjectID
-        var id: String { objectID.uriRepresentation().absoluteString }
-    }
 
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \LDScheduleEvent.startAt, ascending: true)],
@@ -24,10 +18,13 @@ struct LandlordSchedule: View {
 
     @State private var selectedDate: Date = Date()
     @State private var showNewEvent = false
-    @State private var editingSheet: EditSheetItem?
-    private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
+    @State private var showEditEvent = false
+    @State private var eventToEdit: LDScheduleEvent? = nil
 
-    private var eventsOnSelectedDay: [LDScheduleEvent] {
+    let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
+
+    // Events that fall on the selected day
+    var eventsOnSelectedDay: [LDScheduleEvent] {
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: selectedDate)
         let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
@@ -83,7 +80,8 @@ struct LandlordSchedule: View {
                                 .overlay(alignment: .trailing) {
                                     HStack(spacing: 10) {
                                         Button {
-                                            editingSheet = EditSheetItem(objectID: event.objectID)
+                                            eventToEdit = event
+                                            showEditEvent = true
                                         } label: {
                                             Image(systemName: "pencil")
                                                 .foregroundStyle(primary)
@@ -131,26 +129,19 @@ struct LandlordSchedule: View {
             })
             .environment(\.managedObjectContext, viewContext)
         }
-        .sheet(item: $editingSheet) { sheet in
-            if let event = try? viewContext.existingObject(with: sheet.objectID) as? LDScheduleEvent {
+        .sheet(isPresented: $showEditEvent) {
+            if let event = eventToEdit {
                 NewScheduleEventView(existingEvent: event, onSaved: {
-                    editingSheet = nil
+                    showEditEvent = false
                 })
                 .environment(\.managedObjectContext, viewContext)
-            } else {
-                Color.clear
-                    .onAppear {
-                        editingSheet = nil
-                    }
             }
         }
     }
 
-    private func formatEventTime(_ event: LDScheduleEvent) -> String {
+    func formatEventTime(_ event: LDScheduleEvent) -> String {
         guard let start = event.startAt else { return "" }
-        if event.allDay {
-            return "All day"
-        }
+        if event.allDay { return "All day" }
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         var text = formatter.string(from: start)
@@ -160,13 +151,12 @@ struct LandlordSchedule: View {
         return text
     }
 
-    private func scheduleRow(title: String, subtitle: String) -> some View {
+    func scheduleRow(title: String, subtitle: String) -> some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 12)
                 .fill(primary.opacity(0.12))
                 .frame(width: 44, height: 44)
                 .overlay(Image(systemName: "calendar").foregroundStyle(primary))
-
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.system(size: 14, weight: .semibold))
                 Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -177,7 +167,21 @@ struct LandlordSchedule: View {
         .padding(.vertical, 6)
     }
 
-    private var bg: Color {
+    func deleteEvent(_ event: LDScheduleEvent) {
+        let eventId = event.id?.uuidString
+        do {
+            let service = ScheduleEventService(context: viewContext)
+            try service.deleteScheduleEvent(event)
+            // Also remove from Firestore so tenants no longer see it
+            if let eventId = eventId {
+                Firestore.firestore().collection("scheduleEvents").document(eventId).delete()
+            }
+        } catch {
+            print("Delete schedule event failed:", error.localizedDescription)
+        }
+    }
+
+    var bg: Color {
         Color(uiColor: UIColor { tc in
             tc.userInterfaceStyle == .dark
             ? UIColor(red: 0.06, green: 0.10, blue: 0.13, alpha: 1.0)
@@ -185,18 +189,10 @@ struct LandlordSchedule: View {
         })
     }
 
-    private var cardBg: Color { Color(uiColor: .secondarySystemBackground) }
-    private var border: Color { Color.primary.opacity(0.08) }
-
-    private func deleteEvent(_ event: LDScheduleEvent) {
-        do {
-            let service = ScheduleEventService(context: viewContext)
-            try service.deleteScheduleEvent(event)
-        } catch {
-            print("Delete schedule event failed:", error.localizedDescription)
-        }
-    }
+    var cardBg: Color { Color(uiColor: .secondarySystemBackground) }
+    var border: Color { Color.primary.opacity(0.08) }
 }
+
 
 #Preview {
     LandlordSchedule()

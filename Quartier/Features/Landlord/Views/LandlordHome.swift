@@ -2,20 +2,11 @@
 //  LandlordHome.swift
 //  Quartier
 //
-//  Created by Shaquille O Neil on 2026-01-29.
-//
 
 import SwiftUI
 import CoreData
 
 struct LandlordHome: View {
-    var body: some View {
-        LandlordDashboardView()
-    }
-}
-
-// MARK: - Dashboard (mapped from HTML "Landlord Dashboard")
-private struct LandlordDashboardView: View {
     @Environment(\.managedObjectContext) private var viewContext
 
     @FetchRequest(
@@ -34,23 +25,23 @@ private struct LandlordDashboardView: View {
     @State private var showTaskForm = false
     @State private var taskToEdit: LDTask?
 
-    private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
+    let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
 
-    private var metrics: [MetricCard] = [
-        .init(icon: "house.fill", iconColor: .blue, title: "Active", value: "12",
-              subText: "+2%", subTextColor: .green, isHighlighted: false),
-        .init(icon: "calendar.badge.checkmark", iconColor: .orange, title: "Visits", value: "5",
-              subText: "+1 today", subTextColor: .blue, isHighlighted: false),
-        .init(icon: "creditcard.fill", iconColor: .blue, title: "Total Earnings", value: "$14,250.00",
-              subText: "+8.4%", subTextColor: .green, isHighlighted: true),
+    let metrics: [MetricCard] = [
+        MetricCard(icon: "house.fill", iconColor: .blue, title: "Active", value: "12",
+                   subText: "+2%", subTextColor: .green, isHighlighted: false),
+        MetricCard(icon: "calendar.badge.checkmark", iconColor: .orange, title: "Visits", value: "5",
+                   subText: "+1 today", subTextColor: .blue, isHighlighted: false),
+        MetricCard(icon: "creditcard.fill", iconColor: .blue, title: "Total Earnings", value: "$14,250.00",
+                   subText: "+8.4%", subTextColor: .green, isHighlighted: true),
     ]
 
-    private let inquiries: [Inquiry] = [
-        .init(name: "Sarah Jenkins", subtitle: "Studio in Plateau • Montreal", timeAgo: "2m ago", hasUnreadDot: true),
-        .init(name: "Marc Antoine", subtitle: "2BR Modern Loft • Downtown", timeAgo: "45m ago", hasUnreadDot: false),
+    let inquiries: [Inquiry] = [
+        Inquiry(name: "Sarah Jenkins", subtitle: "Studio in Plateau • Montreal", timeAgo: "2m ago", hasUnreadDot: true),
+        Inquiry(name: "Marc Antoine", subtitle: "2BR Modern Loft • Downtown", timeAgo: "45m ago", hasUnreadDot: false),
     ]
 
-    private var pendingTaskCount: Int {
+    var pendingTaskCount: Int {
         ldTasks.filter { !$0.isDone }.count
     }
 
@@ -61,7 +52,7 @@ private struct LandlordDashboardView: View {
             ScrollView {
                 VStack(spacing: 14) {
 
-                    // Top Bar
+                    // Top bar
                     HStack(spacing: 12) {
                         Circle()
                             .fill(primary.opacity(0.15))
@@ -86,7 +77,7 @@ private struct LandlordDashboardView: View {
                             .environment(\.managedObjectContext, viewContext)
                     }
 
-                    // Mode Toggle
+                    // Mode toggle
                     HStack {
                         HStack(spacing: 0) {
                             ForEach(Mode.allCases, id: \.self) { m in
@@ -107,14 +98,11 @@ private struct LandlordDashboardView: View {
                             }
                         }
                         .padding(4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(chipBg)
-                        )
+                        .background(RoundedRectangle(cornerRadius: 14).fill(chipBg))
                     }
                     .padding(.horizontal, 16)
 
-                    // Metrics
+                    // Metric cards
                     VStack(spacing: 12) {
                         HStack(spacing: 12) {
                             metricSmall(metrics[0])
@@ -198,19 +186,8 @@ private struct LandlordDashboardView: View {
     }
 
     // MARK: - UI Helpers
-    private var bg: Color {
-        Color(uiColor: UIColor { tc in
-            tc.userInterfaceStyle == .dark
-            ? UIColor(red: 0.06, green: 0.10, blue: 0.13, alpha: 1.0)
-            : UIColor(red: 0.96, green: 0.97, blue: 0.97, alpha: 1.0)
-        })
-    }
 
-    private var cardBg: Color { Color(uiColor: .secondarySystemBackground) }
-    private var chipBg: Color { Color(uiColor: .tertiarySystemBackground) }
-    private var border: Color { Color.primary.opacity(0.08) }
-
-    private func metricSmall(_ m: MetricCard) -> some View {
+    func metricSmall(_ m: MetricCard) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: m.icon)
@@ -220,10 +197,8 @@ private struct LandlordDashboardView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
             }
-
             Text(m.value)
                 .font(.system(size: 26, weight: .bold))
-
             HStack(spacing: 6) {
                 if m.subText.contains("%") {
                     Image(systemName: "chart.line.uptrend.xyaxis")
@@ -240,7 +215,7 @@ private struct LandlordDashboardView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(border, lineWidth: 1))
     }
 
-    private func metricBig(_ m: MetricCard) -> some View {
+    func metricBig(_ m: MetricCard) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 HStack(spacing: 8) {
@@ -259,7 +234,6 @@ private struct LandlordDashboardView: View {
                     .padding(.vertical, 6)
                     .background(Capsule().fill(Color.green.opacity(0.12)))
             }
-
             Text(m.value)
                 .font(.system(size: 30, weight: .bold))
         }
@@ -269,7 +243,7 @@ private struct LandlordDashboardView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(primary.opacity(0.22), lineWidth: 1))
     }
 
-    private func inquiryRow(_ item: Inquiry) -> some View {
+    func inquiryRow(_ item: Inquiry) -> some View {
         HStack(spacing: 12) {
             Circle()
                 .fill(Color.gray.opacity(0.20))
@@ -296,7 +270,7 @@ private struct LandlordDashboardView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(border, lineWidth: 1))
     }
 
-    private func taskRow(task: LDTask) -> some View {
+    func taskRow(task: LDTask) -> some View {
         let isDone = task.isDone
         return HStack(spacing: 12) {
             Button {
@@ -356,12 +330,24 @@ private struct LandlordDashboardView: View {
             }
         }
     }
+
+    var bg: Color {
+        Color(uiColor: UIColor { tc in
+            tc.userInterfaceStyle == .dark
+            ? UIColor(red: 0.06, green: 0.10, blue: 0.13, alpha: 1.0)
+            : UIColor(red: 0.96, green: 0.97, blue: 0.97, alpha: 1.0)
+        })
+    }
+
+    var cardBg: Color { Color(uiColor: .secondarySystemBackground) }
+    var chipBg: Color { Color(uiColor: .tertiarySystemBackground) }
+    var border: Color { Color.primary.opacity(0.08) }
 }
 
 
-
 // MARK: - Small Models
-private struct MetricCard: Identifiable {
+
+struct MetricCard: Identifiable {
     let id = UUID()
     let icon: String
     let iconColor: Color
@@ -372,7 +358,7 @@ private struct MetricCard: Identifiable {
     let isHighlighted: Bool
 }
 
-private struct Inquiry: Identifiable {
+struct Inquiry: Identifiable {
     let id = UUID()
     let name: String
     let subtitle: String
@@ -380,8 +366,8 @@ private struct Inquiry: Identifiable {
     let hasUnreadDot: Bool
 }
 
+
 #Preview {
     LandlordHome()
         .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }
-

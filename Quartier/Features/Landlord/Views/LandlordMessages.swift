@@ -2,20 +2,11 @@
 //  LandlordMessages.swift
 //  Quartier
 //
-//  Landlord: conversation list + chat with tenants. Data from Core Data (LDConversation, LDMessage).
-//
 
 import SwiftUI
 import CoreData
 
 struct LandlordMessages: View {
-    var body: some View {
-        ConversationListView()
-    }
-}
-
-// MARK: - Conversation list (inbox)
-private struct ConversationListView: View {
     @Environment(\.managedObjectContext) private var viewContext
 
     @FetchRequest(
@@ -24,7 +15,7 @@ private struct ConversationListView: View {
     )
     private var conversations: FetchedResults<LDConversation>
 
-    private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
+    let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
 
     var body: some View {
         NavigationStack {
@@ -63,7 +54,7 @@ private struct ConversationListView: View {
         }
     }
 
-    private var bg: Color {
+    var bg: Color {
         Color(uiColor: UIColor { tc in
             tc.userInterfaceStyle == .dark
             ? UIColor(red: 0.06, green: 0.10, blue: 0.13, alpha: 1.0)
@@ -72,11 +63,14 @@ private struct ConversationListView: View {
     }
 }
 
-private struct ConversationRow: View {
+
+// MARK: - Conversation Row
+
+struct ConversationRow: View {
     let conversation: LDConversation
     let primary: Color
 
-    private var title: String {
+    var title: String {
         let listingTitle = conversation.listing?.address ?? "Listing"
         if let name = conversation.tenantName, !name.isEmpty {
             return "\(name) · \(listingTitle)"
@@ -120,7 +114,7 @@ private struct ConversationRow: View {
         .padding(.vertical, 8)
     }
 
-    private func relativeTime(_ date: Date) -> String {
+    func relativeTime(_ date: Date) -> String {
         let cal = Calendar.current
         if cal.isDateInToday(date) {
             let f = DateFormatter()
@@ -134,21 +128,23 @@ private struct ConversationRow: View {
     }
 }
 
-// MARK: - Chat view (one conversation)
+
+// MARK: - Chat View
+
 struct LandlordChatView: View {
     @Environment(\.managedObjectContext) private var viewContext
     let conversation: LDConversation
 
     @State private var messageText = ""
 
-    private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
+    let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
 
-    private var sortedMessages: [LDMessage] {
+    var sortedMessages: [LDMessage] {
         let set = conversation.messages as? Set<LDMessage> ?? []
         return set.sorted { ($0.sentAt ?? .distantPast) < ($1.sentAt ?? .distantPast) }
     }
 
-    private var chatTitle: String {
+    var chatTitle: String {
         if let name = conversation.tenantName, !name.isEmpty {
             return name
         }
@@ -186,11 +182,13 @@ struct LandlordChatView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            markConversationRead()
+            // Mark all messages as read
+            conversation.unreadCount = 0
+            try? viewContext.save()
         }
     }
 
-    private var chatTopBar: some View {
+    var chatTopBar: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(chatTitle)
@@ -209,7 +207,7 @@ struct LandlordChatView: View {
     }
 
     @ViewBuilder
-    private func messageRow(_ msg: LDMessage) -> some View {
+    func messageRow(_ msg: LDMessage) -> some View {
         let isSystem = (msg.type == LDMessageType.systemNotice.rawValue || msg.type == LDMessageType.systemSchedule.rawValue)
         let isOut = msg.isFromLandlord
 
@@ -266,7 +264,7 @@ struct LandlordChatView: View {
         }
     }
 
-    private var inputBar: some View {
+    var inputBar: some View {
         VStack(spacing: 0) {
             Divider().opacity(0.2)
             HStack(alignment: .bottom, spacing: 10) {
@@ -305,13 +303,13 @@ struct LandlordChatView: View {
         }
     }
 
-    private func formatTime(_ date: Date) -> String {
+    func formatTime(_ date: Date) -> String {
         let f = DateFormatter()
         f.timeStyle = .short
         return f.string(from: date)
     }
 
-    private func sendMessage() {
+    func sendMessage() {
         let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
@@ -328,20 +326,11 @@ struct LandlordChatView: View {
         conversation.lastMessageText = text
         conversation.unreadCount += 1
 
-        do {
-            try viewContext.save()
-            messageText = ""
-        } catch {
-            // could show error
-        }
-    }
-
-    private func markConversationRead() {
-        conversation.unreadCount = 0
         try? viewContext.save()
+        messageText = ""
     }
 
-    private var bg: Color {
+    var bg: Color {
         Color(uiColor: UIColor { tc in
             tc.userInterfaceStyle == .dark
             ? UIColor(red: 0.06, green: 0.10, blue: 0.13, alpha: 1.0)
@@ -349,6 +338,7 @@ struct LandlordChatView: View {
         })
     }
 }
+
 
 #Preview {
     LandlordMessages()

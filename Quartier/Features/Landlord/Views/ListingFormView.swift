@@ -2,9 +2,6 @@
 //  ListingFormView.swift
 //  Quartier
 //
-//  Created by Shaquille O Neil on 2026-02-26.
-//
-
 
 import SwiftUI
 import Firebase
@@ -30,7 +27,7 @@ struct ListingFormView: View {
     @State private var showPublishSuccess = false
     @State private var publishError: String? = nil
 
-    let allAmenities = ["Air Conditioning","WiFi","Parking","Pet Friendly","Laundry"]
+    let allAmenities = ["Air Conditioning", "WiFi", "Parking", "Pet Friendly", "Laundry"]
 
     init(existingListing: Listing? = nil) {
         if let existing = existingListing {
@@ -48,7 +45,7 @@ struct ListingFormView: View {
         }
     }
 
-    /// Published or rented listings: bind / unbind tenant (requires same listing on Firebase for cloud actions).
+    // Only show tenant assignment if this is a published/rented listing belonging to the current landlord
     private var canManageTenantAssignment: Bool {
         isEditing
             && !listing.landLordId.isEmpty
@@ -59,47 +56,46 @@ struct ListingFormView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                
+
                 photoPicker
-                
+
                 imagePreviewRow
-                
-              // BUILDING
+
                 TextField("Building ID", text: $listing.buildingID)
                     .modifier(FormCard())
-                
-                // PRICE
+
                 TextField("Monthly Price", value: $listing.price, format: .currency(code: "CAD"))
                     .modifier(FormCard())
                     .keyboardType(.decimalPad)
-                
+
                 TextField("Address", text: $listing.address)
                     .modifier(FormCard())
-                
-                // BED / BATH
+
                 HStack {
                     StepperCard(title: "Bedrooms", value: $listing.bedrooms)
                     StepperCard(title: "Bathrooms", value: $listing.bathrooms)
                 }
-                
+
                 TextField("Square Feet", value: $listing.squareFeet, format: .number)
                     .modifier(FormCard())
                     .keyboardType(.numberPad)
-                
-                // AMENITIES
+
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Amenities").font(.headline)
-                    
                     ForEach(allAmenities, id: \.self) { amenity in
                         AmenityToggleRow(
                             title: amenity,
                             selected: listing.amenities.contains(amenity)
                         ) {
-                            toggleAmenity(amenity)
+                            if listing.amenities.contains(amenity) {
+                                listing.amenities.removeAll { $0 == amenity }
+                            } else {
+                                listing.amenities.append(amenity)
+                            }
                         }
                     }
                 }
-                
+
                 Toggle("Rented", isOn: $listing.isRented)
                     .toggleStyle(SwitchToggleStyle())
 
@@ -113,26 +109,23 @@ struct ListingFormView: View {
                     )
                 }
 
-                // RULES
                 VStack(alignment: .leading) {
                     Text("Rules").font(.headline)
                     TextEditor(text: $listing.rules)
                         .frame(height: 120)
                         .modifier(FormCard())
                 }
-                
-                // ACTIONS
+
                 HStack {
-                    
                     Button("Save as Draft") {
                         listing.status = .draft
-                        print("Images count before save:", listing.images.count)
                         saveDraftListing()
                         showDraftSavedAlert = true
                     }
                     .buttonStyle(.bordered)
-                    
+
                     Spacer()
+
                     Button(isEditing ? "Update" : "Publish") {
                         listing.status = .published
                         print("Saving listing for user:", Auth.auth().currentUser?.uid ?? "nil")
@@ -146,14 +139,10 @@ struct ListingFormView: View {
         .navigationTitle("Listing")
         .background(Color(.systemGray6))
         .alert("Draft Saved", isPresented: $showDraftSavedAlert) {
-            Button("OK") {
-                dismiss()
-            }
+            Button("OK") { dismiss() }
         }
         .alert("Listing Published", isPresented: $showPublishSuccess) {
-            Button("OK") {
-                dismiss()
-            }
+            Button("OK") { dismiss() }
         }
         .alert("Publish Failed", isPresented: Binding(
             get: { publishError != nil },
@@ -164,24 +153,24 @@ struct ListingFormView: View {
             Text(publishError ?? "")
         }
     }
-    
+
+    // Move selected image to be the cover photo
     func setAsCover(index: Int) {
         let selected = listing.images.remove(at: index)
         listing.images.insert(selected, at: 0)
     }
-    
+
+    // Geocode an address string to coordinates
     func geocodeAddress(_ address: String) async throws -> CLLocationCoordinate2D {
         let geocoder = CLGeocoder()
         let placemarks = try await geocoder.geocodeAddressString(address)
-
         guard let location = placemarks.first?.location else {
             throw NSError(domain: "GeocodeError", code: 0)
         }
-
         return location.coordinate
     }
 
-    /// Prefer stored coordinates; otherwise geocode. If geocoding fails (e.g. kCLErrorDomain 8 — no results), fall back so publish/update still succeeds.
+    // Get coordinates for the listing — uses stored coords or geocodes the address
     private func coordinatesForPublish() async -> CLLocationCoordinate2D {
         if let lat = listing.latitude, let lon = listing.longitude {
             if abs(lat) > 0.000_1 || abs(lon) > 0.000_1 {
@@ -195,21 +184,16 @@ struct ListingFormView: View {
         do {
             return try await geocodeAddress(trimmed)
         } catch {
-            return Self.fallbackListingCoordinate
+            return CLLocationCoordinate2D(latitude: 45.5019, longitude: -73.5674) // fallback: Montréal
         }
     }
 
-    /// Default map center (Montréal) when address cannot be geocoded — same region as elsewhere in the app.
-    private static let fallbackListingCoordinate = CLLocationCoordinate2D(latitude: 45.5019, longitude: -73.5674)
-    
-    
-    
     private var photoPicker: some View {
         PhotosPicker(
             selection: $selectedItems,
             maxSelectionCount: 10,
             matching: .images
-        ){
+        ) {
             Text("Select Photos")
                 .padding(10)
                 .background(
@@ -235,7 +219,6 @@ struct ListingFormView: View {
             if !listing.existingImageURLs.isEmpty || !listing.images.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-
                         ForEach(Array(listing.existingImageURLs.enumerated()), id: \.offset) { index, urlString in
                             if let url = URL(string: urlString) {
                                 WebImage(url: url)
@@ -246,7 +229,6 @@ struct ListingFormView: View {
                                     .cornerRadius(12)
                             }
                         }
-
                         ForEach(Array(listing.images.enumerated()), id: \.offset) { index, image in
                             Image(uiImage: image)
                                 .resizable()
@@ -263,76 +245,8 @@ struct ListingFormView: View {
             }
         }
     }
-}
 
-struct AmenityToggleRow: View {
-    let title: String
-    let selected: Bool
-    let tap: () -> Void
-    
-    var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-        }
-        .padding()
-        .background(.white)
-        .cornerRadius(14)
-        .onTapGesture(perform: tap)
-    }
-}
-
-
-extension ListingFormView {
-    func toggleAmenity(_ amenity: String) {
-        if listing.amenities.contains(amenity) {
-            listing.amenities.removeAll { $0 == amenity }
-        } else {
-            listing.amenities.append(amenity)
-        }
-    }
-}
-
-
-struct StepperCard: View {
-    let title: String
-    @Binding var value: Int
-    
-    var body: some View {
-        VStack {
-            Text(title)
-            
-            HStack {
-                Button { if value > 0 { value -= 1 } } label: {
-                    Image(systemName: "minus.circle")
-                }
-                
-                Text("\(value)")
-                    .font(.title3.bold())
-                    .frame(minWidth: 40)
-                
-                Button { value += 1 } label: {
-                    Image(systemName: "plus.circle")
-                }
-            }
-        }
-        .padding()
-        .background(.white)
-        .cornerRadius(14)
-    }
-}
-
-struct FormCard: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .padding()
-            .background(.white)
-            .cornerRadius(14)
-    }
-}
-
-extension ListingFormView {
+    // Wrap firebase.saveListing in async/await
     private func saveListingAndWait(_ imageURLs: [String]) async throws {
         try await withCheckedThrowingContinuation { cont in
             firebase.saveListing(
@@ -353,10 +267,8 @@ extension ListingFormView {
                 isRented: listing.isRented
             ) { result in
                 switch result {
-                case .success:
-                    cont.resume()
-                case .failure(let err):
-                    cont.resume(throwing: err)
+                case .success: cont.resume()
+                case .failure(let err): cont.resume(throwing: err)
                 }
             }
         }
@@ -369,81 +281,32 @@ extension ListingFormView {
         let wasDraft = (listing.status == .draft)
         listing.status = .published
 
-        if isEditing {
-
-            Task {
-                do {
-
-                    let coord = await coordinatesForPublish()
-                    listing.latitude = coord.latitude
-                    listing.longitude = coord.longitude
-
-                    let newURLs = try await firebase.uploadListingImages(
-                        listingId: listing.listingID,
-                        images: listing.images
-                    )
-
-                    let allURLs = listing.existingImageURLs + newURLs
-
-                    try await saveListingAndWait(allURLs)
-
-                    await MainActor.run {
-                        if wasDraft {
-                            coreDataManager.deleteDraft(
-                                listingID: listing.listingID,
-                                context: viewContext,
-                                pushRemote: false
-                            )
-                        }
-
-                        firebase.fetchListingsLandord()
-                        coreDataManager.deleteDraft(listingID: listing.listingID, context: viewContext)
-
-                        isPublishing = false
-                        showPublishSuccess = true
-                    }
-
-                } catch {
-                    await MainActor.run {
-                        isPublishing = false
-                        publishError = error.localizedDescription
-                    }
-                }
-            }
-
-            return
-        }
-
-        // NEW LISTING FLOW
         Task {
             do {
-
                 let coord = await coordinatesForPublish()
                 listing.latitude = coord.latitude
                 listing.longitude = coord.longitude
 
-                let urls = try await firebase.uploadListingImages(
+                let newURLs = try await firebase.uploadListingImages(
                     listingId: listing.listingID,
                     images: listing.images
                 )
 
-                try await saveListingAndWait(urls)
+                let allURLs = listing.existingImageURLs + newURLs
+                try await saveListingAndWait(allURLs)
 
                 await MainActor.run {
+                    // Remove the draft from CoreData if it existed
                     if wasDraft {
                         coreDataManager.deleteDraft(
                             listingID: listing.listingID,
-                            context: viewContext,
-                            pushRemote: false
+                            context: viewContext
                         )
                     }
-
                     firebase.fetchListingsLandord()
-
                     isPublishing = false
                     showPublishSuccess = true
                 }
-
             } catch {
                 await MainActor.run {
                     isPublishing = false
@@ -460,9 +323,61 @@ extension ListingFormView {
 }
 
 
+struct AmenityToggleRow: View {
+    let title: String
+    let selected: Bool
+    let tap: () -> Void
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+        }
+        .padding()
+        .background(.white)
+        .cornerRadius(14)
+        .onTapGesture(perform: tap)
+    }
+}
+
+
+struct StepperCard: View {
+    let title: String
+    @Binding var value: Int
+
+    var body: some View {
+        VStack {
+            Text(title)
+            HStack {
+                Button { if value > 0 { value -= 1 } } label: {
+                    Image(systemName: "minus.circle")
+                }
+                Text("\(value)")
+                    .font(.title3.bold())
+                    .frame(minWidth: 40)
+                Button { value += 1 } label: {
+                    Image(systemName: "plus.circle")
+                }
+            }
+        }
+        .padding()
+        .background(.white)
+        .cornerRadius(14)
+    }
+}
+
+
+struct FormCard: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding()
+            .background(.white)
+            .cornerRadius(14)
+    }
+}
 
 
 #Preview {
     ListingFormView()
 }
-
