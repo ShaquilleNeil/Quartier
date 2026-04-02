@@ -1,0 +1,76 @@
+import SwiftUI
+import FirebaseFirestore
+import FirebaseAuth
+import Combine
+
+struct Conversation: Identifiable, Codable, Hashable {
+    @DocumentID var id: String?
+    var listingId: String
+    var listingAddress: String
+    var tenantId: String
+    var landlordId: String
+    var tenantName: String
+    var lastMessageText: String
+    var lastMessageAt: Date
+}
+
+struct ChatMessage: Identifiable, Codable, Hashable {
+    @DocumentID var id: String?
+    var conversationId: String
+    var senderId: String
+    var text: String
+    var sentAt: Date
+}
+
+@MainActor
+class ChatViewModel: ObservableObject {
+    @Published var conversations: [Conversation] = []
+    @Published var messages: [ChatMessage] = []
+    
+    private let db = Firestore.firestore()
+    private var convosListener: ListenerRegistration?
+    private var messagesListener: ListenerRegistration?
+    
+    func loadConversations(isLandlord: Bool) {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let field = isLandlord ? "landlordId" : "tenantId"
+        
+        convosListener = db.collection("conversations")
+            .whereField(field, isEqualTo: uid)
+            .order(by: "lastMessageAt", descending: true)
+            .addSnapshotListener { snapshot, _ in
+                guard let documents = snapshot?.documents else { return }
+                self.conversations = documents.compactMap { try? $0.data(as: Conversation.self) }
+            }
+    }
+    
+    func loadMessages(conversationId: String) {
+        messagesListener = db.collection("conversations").document(conversationId).collection("messages")
+            .order(by: "sentAt", descending: false)
+            .addSnapshotListener { snapshot, _ in
+                guard let documents = snapshot?.documents else { return }
+                self.messages = documents.compactMap { try? $0.data(as: ChatMessage.self) }
+            }
+    }
+    
+    func sendMessage(conversationId: String, text: String) {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let msg = ChatMessage(conversationId: conversationId, senderId: uid, text: text, sentAt: Date())
+        
+        let docRef = db.collection("conversations").document(conversationId).collection("messages").document()
+        try? docRef.setData(from: msg)
+        
+        db.collection("conversations").document(conversationId).updateData([
+            "lastMessageText": text,
+            "lastMessageAt": FieldValue.serverTimestamp()
+        ])
+    }
+    
+    func cleanupMessages() {
+        messagesListener?.remove()
+    }
+    
+    func cleanupConversations() {
+        convosListener?.remove()
+    }
+}

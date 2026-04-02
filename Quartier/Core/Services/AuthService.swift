@@ -2,7 +2,6 @@
 //  AuthService.swift
 //  Quartier
 //
-
 import Foundation
 import Combine
 import FirebaseAuth
@@ -10,7 +9,7 @@ import FirebaseFirestore
 
 class AuthService: ObservableObject {
     
-    // MARK: - Published routing state
+    // MARK: - Published Routing State
     
     @Published var userSession: FirebaseAuth.User?
     @Published var currentUserRole: String?
@@ -30,7 +29,6 @@ class AuthService: ObservableObject {
     init(firebase: FirebaseManager) {
         self.firebase = firebase
         
-        // 🔥 Reactive auth listener (canonical Firebase pattern)
         Auth.auth().addStateDidChangeListener { [weak self] _, user in
             guard let self else { return }
 
@@ -41,7 +39,6 @@ class AuthService: ObservableObject {
 
                 if let user = user {
                     self.attachUserDocumentListener(uid: user.uid)
-                    self.firebase.fetchUser(uid: user.uid) { _ in }
                 } else {
                     self.resetState()
                 }
@@ -58,10 +55,6 @@ class AuthService: ObservableObject {
                 completion(false)
                 return
             }
-
-            // 🔥 No manual fetch needed
-            // Auth listener will handle Firestore hydration
-
             completion(true)
         }
     }
@@ -70,7 +63,6 @@ class AuthService: ObservableObject {
     
     func register(email: String, password: String, role: String, completion: @escaping (Bool) -> Void) {
         Auth.auth().createUser(withEmail: email, password: password) { result, error in
-            
             if error != nil {
                 completion(false)
                 return
@@ -81,36 +73,16 @@ class AuthService: ObservableObject {
                 return
             }
             
-            // Save user doc with lifecycle defaults
             self.firebase.saveUser(uid: uid, email: email, role: role) { success in
                 DispatchQueue.main.async {
-                    if success {
-                        // Auth listener will hydrate everything
-                        completion(true)
-                    } else {
-                        completion(false)
-                    }
+                    completion(success)
                 }
             }
         }
     }
     
-    // MARK: - Fetch Firestore user document
+    // MARK: - Document Listener
     
-    func fetchUserData() {
-        guard let uid = userSession?.uid else { return }
-
-        firebase.fetchUser(uid: uid) { [weak self] data in
-            guard let self else { return }
-
-            DispatchQueue.main.async {
-                if let data {
-                    self.applyUserDocument(data)
-                }
-            }
-        }
-    }
-
     private func attachUserDocumentListener(uid: String) {
         userDocListener = db.collection("users").document(uid).addSnapshotListener { [weak self] snapshot, _ in
             guard let self else { return }
@@ -132,11 +104,13 @@ class AuthService: ObservableObject {
         currentUserRole = data["role"] as? String
         hasCompletedPreferences = data["hasCompletedPreferences"] as? Bool ?? false
         isRenting = data["isRenting"] as? Bool ?? false
+        
         if let lid = data["rentedListingId"] as? String, !lid.isEmpty {
             rentedListingId = lid
         } else {
             rentedListingId = nil
         }
+        
         if let addr = data["rentedAddress"] as? String, !addr.isEmpty {
             rentedAddress = addr
         } else {
@@ -148,7 +122,6 @@ class AuthService: ObservableObject {
     
     func signOut() {
         try? Auth.auth().signOut()
-        // Auth listener will reset state automatically
     }
     
     // MARK: - Helpers
@@ -161,5 +134,6 @@ class AuthService: ObservableObject {
         isRenting = false
         rentedListingId = nil
         rentedAddress = nil
+        firebase.clearState() 
     }
 }
