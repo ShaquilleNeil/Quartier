@@ -4,7 +4,6 @@
 //
 //  Created by Shaquille O Neil on 2026-02-24.
 //
-
 import Foundation
 import CoreData
 import Combine
@@ -14,13 +13,15 @@ import FirebaseFirestore
 
 class CoreDataManager: ObservableObject {
     
+    // MARK: - Published Properties
+    
     @Published var preferences: TPreferences? = nil
     @Published var listings: [LDListing] = []
     
     private let sync = FirebaseSync(collectionPath: "listings")
-    
-    //prevent echo-loop: remote -> coreData -> saveContext -> remote
     private var isApplyingRemoteChanges = false
+    
+    // MARK: - Initialization
     
     init(_ context: NSManagedObjectContext) {
         loadPreferences(context)
@@ -41,7 +42,7 @@ class CoreDataManager: ObservableObject {
         sync.startListeningPreferences(context: context)
     }
     
-    // MARK: Load
+    // MARK: - Load Operations
     
     func loadPreferences(_ context: NSManagedObjectContext) {
         let request = TPreferences.fetchRequest()
@@ -73,11 +74,9 @@ class CoreDataManager: ObservableObject {
         }
     }
     
-    func fetchDraft(
-        listingID: UUID,
-        context: NSManagedObjectContext
-    ) -> LDListing? {
-
+    // MARK: - Fetch Operations
+    
+    func fetchDraft(listingID: UUID, context: NSManagedObjectContext) -> LDListing? {
         guard let currentUID = Auth.auth().currentUser?.uid else { return nil }
 
         let request: NSFetchRequest<LDListing> = LDListing.fetchRequest()
@@ -96,8 +95,6 @@ class CoreDataManager: ObservableObject {
         }
     }
     
-    
-    
     func fetchPreferences(for userId: UUID, context: NSManagedObjectContext) -> TPreferences? {
         let request: NSFetchRequest<TPreferences> = TPreferences.fetchRequest()
         request.predicate = NSPredicate(format: "currentUserUUID == %@", userId as CVarArg)
@@ -111,7 +108,7 @@ class CoreDataManager: ObservableObject {
         }
     }
     
-    // MARK: Save / Update
+    // MARK: - Save & Update Operations
     
     func savePreferences(
         userId: UUID? = nil,
@@ -123,8 +120,7 @@ class CoreDataManager: ObservableObject {
         fullyFurnished: Bool,
         parkingIncluded: Bool,
         _ context: NSManagedObjectContext
-    )
-    {
+    ) {
         let existing = preferences ?? TPreferences(context: context)
         
         if existing.id == nil {
@@ -167,15 +163,8 @@ class CoreDataManager: ObservableObject {
         }
     }
     
-    
-    func saveDraft(
-        from listing: Listing,
-        context: NSManagedObjectContext
-    ) {
-        guard let currentUID = Auth.auth().currentUser?.uid else {
-            print("No logged in user, cannot save draft")
-            return
-        }
+    func saveDraft(from listing: Listing, context: NSManagedObjectContext) {
+        guard let currentUID = Auth.auth().currentUser?.uid else { return }
 
         let existing = fetchDraft(listingID: listing.listingID, context: context)
         let entity = existing ?? LDListing(context: context)
@@ -225,13 +214,9 @@ class CoreDataManager: ObservableObject {
         loadListings(context)
     }
     
+    // MARK: - Delete Operations
     
-    
-    func deleteDraft(
-        listingID: UUID,
-        context: NSManagedObjectContext,
-        pushRemote: Bool = false
-    ) {
+    func deleteDraft(listingID: UUID, context: NSManagedObjectContext, pushRemote: Bool = false) {
         guard let currentUID = Auth.auth().currentUser?.uid else { return }
 
         let request: NSFetchRequest<LDListing> = LDListing.fetchRequest()
@@ -245,10 +230,7 @@ class CoreDataManager: ObservableObject {
         do {
             guard let item = try context.fetch(request).first else { return }
 
-            let shouldPushRemoteDelete =
-                pushRemote &&
-                !isApplyingRemoteChanges &&
-                item.status != "draft"
+            let shouldPushRemoteDelete = pushRemote && !isApplyingRemoteChanges && item.status != "draft"
 
             if shouldPushRemoteDelete {
                 sync.pushDelete(listing: item)
@@ -263,8 +245,7 @@ class CoreDataManager: ObservableObject {
         }
     }
     
-    
-    // MARK: Save Context
+    // MARK: - Context Helpers
     
     private func saveContext(_ context: NSManagedObjectContext) {
         do {
