@@ -1,9 +1,16 @@
-//
-//  AssignTenantSection.swift
-//  Quartier
-//
-
 import SwiftUI
+import FirebaseFirestore
+
+struct FirebaseTenantPickerItem: Identifiable, Hashable {
+    let id: String
+    let email: String
+    let displayName: String
+
+    var pickerLabel: String {
+        if displayName.isEmpty { return email }
+        return "\(displayName) — \(email)"
+    }
+}
 
 struct AssignTenantSection: View {
     @EnvironmentObject private var firebase: FirebaseManager
@@ -158,25 +165,47 @@ struct AssignTenantSection: View {
 
     private func refreshRemoteBinding(showSpinner: Bool) {
         if showSpinner { isLoadingRemote = true }
-        firebase.fetchListingTenantBinding(listingId: listingId) { exists, uid, email in
-            if showSpinner { isLoadingRemote = false }
-            listingExistsOnFirebase = exists
-            boundTenantUserId = uid
-            boundTenantEmail = email
+        Firestore.firestore().collection("listings").document(listingId).getDocument { snapshot, _ in
+            let tid = snapshot?.data()?["currentTenantUserId"] as? String
+            
+            if let tenantId = tid, !tenantId.isEmpty {
+                Firestore.firestore().collection("users").document(tenantId).getDocument { userSnap, _ in
+                    DispatchQueue.main.async {
+                        if showSpinner { isLoadingRemote = false }
+                        listingExistsOnFirebase = snapshot?.exists ?? false
+                        boundTenantUserId = tenantId
+                        boundTenantEmail = userSnap?.data()?["email"] as? String
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    if showSpinner { isLoadingRemote = false }
+                    listingExistsOnFirebase = snapshot?.exists ?? false
+                    boundTenantUserId = nil
+                    boundTenantEmail = nil
+                }
+            }
         }
     }
 
     private func loadTenantsFromFirebase() {
         isLoadingTenants = true
         tenantsLoadError = nil
-        firebase.fetchTenantsForLandlordPicker { result in
-            isLoadingTenants = false
-            switch result {
-            case .success(let items):
-                tenants = items
-            case .failure(let err):
-                tenants = []
-                tenantsLoadError = err.localizedDescription
+        Firestore.firestore().collection("users").whereField("role", isEqualTo: "tenant").getDocuments { snapshot, error in
+            DispatchQueue.main.async {
+                isLoadingTenants = false
+                if let error = error {
+                    tenantsLoadError = error.localizedDescription
+                    tenants = []
+                    return
+                }
+                tenants = snapshot?.documents.compactMap { doc -> FirebaseTenantPickerItem? in
+                    let data = doc.data()
+                    let email = data["email"] as? String ?? ""
+                    if email.isEmpty { return nil }
+                    let name = data["displayName"] as? String ?? ""
+                    return FirebaseTenantPickerItem(id: doc.documentID, email: email, displayName: name)
+                } ?? []
             }
         }
     }
@@ -184,17 +213,28 @@ struct AssignTenantSection: View {
     private func assign() {
         errorMessage = nil
         isBusy = true
-        firebase.assignTenantToListing(listingId: listingId, tenantUserId: selectedTenantId) { result in
-            isBusy = false
-            switch result {
-            case .success:
-                isRented = true
-                selectedTenantId = ""
-                loadTenantsFromFirebase()
-                refreshRemoteBinding(showSpinner: false)
-                onChange()
-            case .failure(let err):
-                errorMessage = err.localizedDescription
+        
+        let db = Firestore.firestore()
+        let batch = db.batch()
+        
+        let listingRef = db.collection("listings").document(listingId)
+        let tenantRef = db.collection("users").document(selectedTenantId)
+        
+        batch.updateData(["isRented": true, "currentTenantUserId": selectedTenantId, "updatedAt": FieldValue.serverTimestamp()], forDocument: listingRef)
+        batch.updateData(["isRenting": true, "rentedListingId": listingId], forDocument: tenantRef)
+        
+        batch.commit { error in
+            DispatchQueue.main.async {
+                isBusy = false
+                if let error = error {
+                    errorMessage = error.localizedDescription
+                } else {
+                    isRented = true
+                    selectedTenantId = ""
+                    loadTenantsFromFirebase()
+                    refreshRemoteBinding(showSpinner: false)
+                    onChange()
+                }
             }
         }
     }
@@ -202,18 +242,34 @@ struct AssignTenantSection: View {
     private func removeTenant() {
         errorMessage = nil
         isBusy = true
-        firebase.removeTenantFromListing(listingId: listingId) { result in
+        
+        guard let tid = boundTenantUserId, !tid.isEmpty else {
             isBusy = false
-            switch result {
-            case .success:
-                isRented = false
-                boundTenantUserId = nil
-                boundTenantEmail = nil
-                loadTenantsFromFirebase()
-                refreshRemoteBinding(showSpinner: false)
-                onChange()
-            case .failure(let err):
-                errorMessage = err.localizedDescription
+            return
+        }
+        
+        let db = Firestore.firestore()
+        let batch = db.batch()
+        
+        let listingRef = db.collection("listings").document(listingId)
+        let tenantRef = db.collection("users").document(tid)
+        
+        batch.updateData(["isRented": false, "currentTenantUserId": FieldValue.delete(), "updatedAt": FieldValue.serverTimestamp()], forDocument: listingRef)
+        batch.updateData(["isRenting": false, "rentedListingId": FieldValue.delete()], forDocument: tenantRef)
+        
+        batch.commit { error in
+            DispatchQueue.main.async {
+                isBusy = false
+                if let error = error {
+                    errorMessage = error.localizedDescription
+                } else {
+                    isRented = false
+                    boundTenantUserId = nil
+                    boundTenantEmail = nil
+                    loadTenantsFromFirebase()
+                    refreshRemoteBinding(showSpinner: false)
+                    onChange()
+                }
             }
         }
     }
