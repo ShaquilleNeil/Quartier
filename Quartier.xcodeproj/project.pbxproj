@@ -19,32 +19,9 @@
 		541476A92F2A8BF60087573C /* Quartier.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Quartier.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		FC49265A2F7EA95C0002B41C /* Exceptions for "Quartier" folder in "Quartier" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Features/Payments/Views/Views/AssignTenantSection.swift,
-				Features/Payments/Views/Views/LandlordHome.swift,
-				Features/Payments/Views/Views/LandlordListings.swift,
-				Features/Payments/Views/Views/LandlordMessages.swift,
-				Features/Payments/Views/Views/LandlordProfile.swift,
-				Features/Payments/Views/Views/LandlordSchedule.swift,
-				Features/Payments/Views/Views/ListingFormView.swift,
-				Features/Payments/Views/Views/NewListingView.swift,
-				Features/Payments/Views/Views/NewNoticeView.swift,
-				Features/Payments/Views/Views/NewScheduleEventView.swift,
-				Features/Payments/Views/Views/NewTaskView.swift,
-			);
-			target = 541476A82F2A8BF60087573C /* Quartier */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		541476AB2F2A8BF60087573C /* Quartier */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				FC49265A2F7EA95C0002B41C /* Exceptions for "Quartier" folder in "Quartier" target */,
-			);
 			path = Quartier;
 			sourceTree = "<group>";
 		};

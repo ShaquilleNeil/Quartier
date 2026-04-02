@@ -2,8 +2,9 @@
 //  TenantPreferences.swift
 //  Quartier
 //
+
 import SwiftUI
-import FirebaseFirestore
+import FirebaseFirestore // Need this to save!
 import FirebaseAuth
 
 struct TenantPreferencesView: View {
@@ -13,6 +14,10 @@ struct TenantPreferencesView: View {
     @EnvironmentObject private var holder: CoreDataManager
     @EnvironmentObject private var firebase: FirebaseManager
     
+//   let currentUserId = Auth.auth().currentUser?.uid
+
+    
+    // MARK: - Form State
     @State private var locationQuery = ""
     @State private var budgetMin: Double = 1000
     @State private var budgetMax: Double = 3000
@@ -21,6 +26,8 @@ struct TenantPreferencesView: View {
     @State private var fullyFurnished = false
     @State private var parkingIncluded = false
     @State private var userloggedin = true
+    @State private var goToHome = false
+    
     
     let bedroomOptions = ["Studio", "1", "2", "3+"]
     
@@ -30,6 +37,9 @@ struct TenantPreferencesView: View {
                 Color(hex: "f6f7f8").ignoresSafeArea()
                 
                 VStack(spacing: 0) {
+                    
+                    
+                    
                     ScrollView {
                         VStack(spacing: 32) {
                             
@@ -39,7 +49,9 @@ struct TenantPreferencesView: View {
                                     .fontWeight(.bold)
                             }
                             
+                            // MARK: Title Section
                             if (userloggedin == false){
+                                // MARK: Header
                                 HStack {
                                     Button(action: { dismiss() }) {
                                         Image(systemName: "chevron.left")
@@ -57,6 +69,9 @@ struct TenantPreferencesView: View {
                                 .padding(.horizontal)
                                 .padding(.vertical, 8)
                                 
+                                
+                                
+                                
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Find your perfect home")
                                         .font(.system(size: 32, weight: .bold))
@@ -70,6 +85,8 @@ struct TenantPreferencesView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             
+                            
+                            // MARK: 1. Location Input
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("Desired Location")
                                     .font(.headline)
@@ -87,6 +104,7 @@ struct TenantPreferencesView: View {
                                 .shadow(color: Color.black.opacity(0.05), radius: 2, y: 1)
                             }
                             
+                            // MARK: 2. Budget Input
                             VStack(alignment: .leading, spacing: 16) {
                                 HStack {
                                     Text("Budget Range")
@@ -99,6 +117,7 @@ struct TenantPreferencesView: View {
                                 }
                                 
                                 VStack(spacing: 20) {
+                                    // Min Slider
                                     VStack(alignment: .leading, spacing: 0) {
                                         Text("Minimum: $\(Int(budgetMin))")
                                             .font(.caption)
@@ -113,6 +132,7 @@ struct TenantPreferencesView: View {
                                             }
                                     }
                                     
+                                    // Max Slider
                                     VStack(alignment: .leading, spacing: 0) {
                                         Text("Maximum: $\(Int(budgetMax))")
                                             .font(.caption)
@@ -133,6 +153,7 @@ struct TenantPreferencesView: View {
                                 .shadow(color: Color.black.opacity(0.05), radius: 2, y: 1)
                             }
                             
+                            // MARK: 3. Bedrooms Input
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("Bedrooms")
                                     .font(.headline)
@@ -157,6 +178,7 @@ struct TenantPreferencesView: View {
                                 .cornerRadius(12)
                             }
                             
+                            // MARK: 4. Features (Toggles)
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("Key Features")
                                     .font(.headline)
@@ -202,12 +224,13 @@ struct TenantPreferencesView: View {
                     }
                 }
                 
+                // MARK: Save Button
                 VStack {
                     Spacer()
                     VStack(spacing: 12) {
                         Button(action: {
-                            // FIX: Save strictly to CoreData, mark Firebase flag, and dismiss safely.
                             holder.savePreferences(
+//                                userId: currentUserUUID,
                                 locationQuery: locationQuery,
                                 budgetMin: budgetMin,
                                 budgetMax: budgetMax,
@@ -217,8 +240,11 @@ struct TenantPreferencesView: View {
                                 parkingIncluded: parkingIncluded,
                                 context
                             )
+                            // Optionally dismiss after saving
+//                            dismiss()
+                            //navigate t
+                            goToHome = true
                             firebase.updateUserHasCompletedPreferences()
-                            dismiss()
                         }) {
                             Text("Save & Continue")
                                 .font(.system(size: 18, weight: .bold))
@@ -234,9 +260,15 @@ struct TenantPreferencesView: View {
                     .background(Rectangle().fill(.ultraThinMaterial).ignoresSafeArea())
                 }
             }
-        }
-        .onAppear {
+            .navigationDestination(isPresented: $goToHome){
+                TenantTabView()
+            }
+        }.onAppear {
+//            guard let userId = Auth.auth().currentUser?.uid,
+//                  let uuid = UUID(uuidString: userId) else { return }
+            
             holder.loadPreferences(context)
+
             if let saved = holder.preferences {
                 locationQuery = saved.locationQuery ?? ""
                 budgetMin = saved.budgetMin
@@ -248,6 +280,41 @@ struct TenantPreferencesView: View {
             }
         }
     }
+    
+    //TODO: FIX
+    // MARK: - Logic
+    //    func handleSavePreferences() {
+    //        guard let uid = authService.userSession?.uid else { return }
+    //
+    //        // This packages up the exact settings they chose
+    //        let prefsData: [String: Any] = [
+    //            "hasCompletedPreferences": true,
+    //            "preferences": [
+    //                "location": locationQuery,
+    //                "budgetMin": budgetMin,
+    //                "budgetMax": budgetMax,
+    //                "bedrooms": selectedBedroom,
+    //                "petsAllowed": petsAllowed,
+    //                "fullyFurnished": fullyFurnished,
+    //                "parkingIncluded": parkingIncluded
+    //            ]
+    //        ]
+    //
+    //        // Push to Firebase and dismiss the sheet/view!
+    //        Firestore.firestore().collection("users").document(uid).setData(prefsData, merge: true) { error in
+    //            if let error = error {
+    //                print("Failed to save: \(error)")
+    //            } else {
+    //                // If you want this to trigger ContentView routing, call authService.fetchUserData() here!
+    //                authService.fetchUserData()
+    //                dismiss()
+    //            }
+    //        }
+    //    }
+    //
+    //}
+    
+    // MARK: - Helper Components
     
     struct PreferenceToggleRow: View {
         let icon: String
@@ -278,3 +345,12 @@ struct TenantPreferencesView: View {
         }
     }
 }
+#Preview {
+    let firebase = FirebaseManager()
+    let auth = AuthService(firebase: firebase)
+
+    return TenantPreferencesView()
+        .environmentObject(firebase)
+        .environmentObject(auth)
+}
+

@@ -9,7 +9,6 @@ import SwiftUI
 import MapKit
 import CoreData
 import FirebaseAuth
-import FirebaseFirestore
 
 struct ApartmentDetailView: View {
 
@@ -26,38 +25,28 @@ struct ApartmentDetailView: View {
         ZStack(alignment: .top) {
 
             headerImage
+            
 
             ScrollView {
 
                 VStack(spacing: 0) {
 
                     Spacer()
-                        .frame(height: 235)
+                        .frame(height: UIScreen.main.bounds.height * 0.42)
 
                     contentCard
-                        .padding()
+                        .padding(.horizontal)
+                       
 
-                }.padding()
+                }.frame(width: 450)
             }
         }
-        .padding()
         .sheet(isPresented: $showChat, onDismiss: {
             activeConversation = nil
         }) {
             if let conv = activeConversation {
-                let firebaseConv = Conversation(
-                    id: conv.id?.uuidString ?? UUID().uuidString,
-                    listingId: listing.listingID.uuidString,
-                    listingAddress: listing.address,
-                    tenantId: conv.tenant?.id?.uuidString ?? "",
-                    landlordId: listing.landLordId,
-                    tenantName: "Me",
-                    lastMessageText: conv.lastMessageText ?? "",
-                    lastMessageAt: conv.lastMessageAt ?? Date()
-                )
-                
                 NavigationStack {
-                    TenantChatView(conversation: firebaseConv)
+                    TenantChatView(conversation: conv)
                         .environment(\.managedObjectContext, viewContext)
                 }
             }
@@ -85,10 +74,7 @@ struct ApartmentDetailView: View {
     }
 
     private var apartmentCoordinate: CLLocationCoordinate2D {
-        CLLocationCoordinate2D(
-            latitude: listing.latitude ?? 45.5019,
-            longitude: listing.longitude ?? -73.5674
-        )
+        CLLocationCoordinate2D(latitude: 45.5019, longitude: -73.5674)
     }
 
     private var contentCard: some View {
@@ -122,7 +108,7 @@ struct ApartmentDetailView: View {
                 Divider()
                     .frame(height: 50)
 
-                infoColumn(value: listing.squareFeet, title: "SQFT")
+                infoColumn(value: 0, title: "SQFT")
             }
             .padding()
 
@@ -134,7 +120,7 @@ struct ApartmentDetailView: View {
             Text("About this place")
                 .font(.subheadline.bold())
 
-            Text(listing.rules.isEmpty ? "This apartment offers a comfortable and well-designed living space with plenty of natural light and a practical layout suited for everyday living." : listing.rules)
+            Text("This apartment offers a comfortable and well-designed living space with plenty of natural light and a practical layout suited for everyday living. The unit features spacious rooms, modern finishes, and convenient access to nearby shops, public transportation, and local amenities.")
                 .lineLimit(isExpanded ? nil : 3)
                 .font(.body)
                 .foregroundStyle(.gray)
@@ -163,7 +149,6 @@ struct ApartmentDetailView: View {
             Text("Location")
                 .font(.subheadline.bold())
 
-            // FIXED: MapCard is now defined below
             MapCard(
                 coordinate: apartmentCoordinate,
                 locationName: listing.address
@@ -172,49 +157,71 @@ struct ApartmentDetailView: View {
             Spacer()
 
             HStack {
+
                 Spacer()
+
                 Button(action: { contactLandlord() }) {
+
                     Text("Contact Landlord")
                         .foregroundStyle(.white)
                         .font(.subheadline.bold())
                         .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.blue)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                        )
                 }
+
                 Spacer()
             }
         }
         .padding()
-        .background(Color(UIColor.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 34))
+        .background(.background)
+        .clipShape(
+            RoundedRectangle(cornerRadius: 34)
+        )
         .offset(y: -30)
     }
 
     private var headerImage: some View {
+
         Group {
+
             if let firstImage = listing.existingImageURLs.first,
                let url = URL(string: firstImage) {
+
                 AsyncImage(url: url) { phase in
+
                     switch phase {
+
                     case .success(let image):
-                        image.resizable().scaledToFill()
+                        image
+                            .resizable()
+                            .scaledToFill()
+
                     case .failure(_):
-                        Image(systemName: "house.fill").resizable().scaledToFit().padding()
+                        Image("apartment1")
+                            .resizable()
+                            .scaledToFill()
+
                     case .empty:
                         ProgressView()
+
                     @unknown default:
-                        EmptyView()
+                        Image("apartment1")
+                            .resizable()
+                            .scaledToFill()
                     }
                 }
+
             } else {
-                Image(systemName: "house.fill").resizable().scaledToFit().padding()
+
+                Image("apartment1")
+                    .resizable()
+                    .scaledToFill()
             }
+
         }
-        .frame(height: 320)
-        .frame(maxWidth: .infinity)
-        .background(Color.gray.opacity(0.1))
-        .clipped()
+        .frame(height: UIScreen.main.bounds.height * 0.5)
         .ignoresSafeArea(edges: .top)
     }
 
@@ -248,9 +255,9 @@ struct ApartmentDetailView: View {
         let conv = LDConversation(context: viewContext)
         conv.id = UUID()
         conv.listing = listingEntity
-        conv.listingId = listing.listingID
+        conv.listingId = listingEntity.id
         conv.tenant = tenantEntity
-        conv.tenantName = tenantEntity.displayName ?? email
+        conv.tenantName = tenantEntity.displayName?.isEmpty == false ? tenantEntity.displayName : email
         conv.lastMessageAt = Date()
         conv.lastMessageText = "Conversation started"
         conv.unreadCount = 0
@@ -267,6 +274,7 @@ struct ApartmentDetailView: View {
         let item = LDListing(context: viewContext)
         item.id = listing.listingID
         item.address = listing.address
+        item.buildingID = listing.buildingID
         item.landLordID = listing.landLordId
         item.price = listing.price
         item.bedrooms = Int16(listing.bedrooms)
@@ -288,32 +296,43 @@ struct ApartmentDetailView: View {
         let t = LDTenant(context: viewContext)
         t.id = UUID()
         t.email = email
-        t.displayName = email.components(separatedBy: "@").first ?? "Tenant"
+        t.displayName = firebase.currentUser?.email.components(separatedBy: "@").first ?? "Tenant"
         t.createdAt = Date()
         t.updatedAt = Date()
         return t
     }
 }
 
-// FIXED: Re-added MapCard so it is no longer "out of scope"
+
 struct MapCard: View {
+
     let coordinate: CLLocationCoordinate2D
     let locationName: String
-    @State private var position: MapCameraPosition
 
-    init(coordinate: CLLocationCoordinate2D, locationName: String) {
+    @State private var region: MKCoordinateRegion
+
+    init(coordinate: CLLocationCoordinate2D,
+         locationName: String) {
+
         self.coordinate = coordinate
         self.locationName = locationName
-        _position = State(initialValue: .region(MKCoordinateRegion(
-            center: coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-        )))
+
+        _region = State(initialValue:
+            MKCoordinateRegion(
+                center: coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.01,
+                                       longitudeDelta: 0.01)
+            )
+        )
     }
 
     var body: some View {
+
         ZStack(alignment: .bottomLeading) {
-            Map(position: .constant(position))
+
+            Map(position: .constant(.region(region)))
                 .allowsHitTesting(false)
+
             Text(locationName)
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 12)
@@ -324,5 +343,41 @@ struct MapCard: View {
         }
         .frame(height: 140)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(.gray.opacity(0.15))
+        )
+        .shadow(color: .black.opacity(0.08),
+                radius: 6, y: 3)
     }
+}
+
+extension Listing {
+    static var mock: Listing {
+
+        var listing = Listing(
+            buildingID: "b1",
+            landLordId: "l1",
+            price: 1800,
+            bedrooms: 2,
+            bathrooms: 1
+        )
+
+        // Set remaining properties AFTER init
+        listing.address = "123 Main St"
+        listing.squareFeet = 900
+        listing.amenities = ["Washer", "Balcony"]
+        listing.existingImageURLs = []
+        listing.status = .published
+        listing.isRented = false
+
+        return listing
+    }
+}
+
+
+#Preview {
+    ApartmentDetailView(listing: .mock)
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+        .environmentObject(FirebaseManager())
 }

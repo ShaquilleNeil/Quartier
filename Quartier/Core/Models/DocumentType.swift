@@ -20,6 +20,8 @@ enum DocumentStatus: String, Codable {
     case verified
 }
 
+
+
 struct DocumentItem: Codable {
     let type: DocumentType
     let url: String?
