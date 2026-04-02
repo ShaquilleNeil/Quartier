@@ -217,6 +217,55 @@ class FirebaseManager: ObservableObject {
             }
     }
     
+    
+    func uploadListingImages(
+        listingId: UUID,
+        images: [UIImage],
+        completion: @escaping ([String]) -> Void
+    ) {
+        var urls: [String] = []
+        var uploadedCount = 0
+
+        let total = images.count
+
+        // edge case: no images
+        if total == 0 {
+            completion([])
+            return
+        }
+
+        for (index, image) in images.enumerated() {
+
+            guard let data = image.jpegData(compressionQuality: 0.8) else {
+                uploadedCount += 1
+                continue
+            }
+
+            let ref = storage.reference()
+                .child("listings/\(listingId.uuidString)/image_\(index).jpg")
+
+            ref.putData(data, metadata: nil) { _, error in
+                if let error = error {
+                    print("Upload error:", error.localizedDescription)
+                    uploadedCount += 1
+                    return
+                }
+
+                ref.downloadURL { url, _ in
+                    if let url {
+                        urls.append(url.absoluteString)
+                    }
+
+                    uploadedCount += 1
+
+                    if uploadedCount == total {
+                        completion(urls)
+                    }
+                }
+            }
+        }
+    }
+    
     func saveListing(
         listingId: UUID,
         buildingId: String,
