@@ -138,7 +138,15 @@ struct LandlordChatView: View {
                 }
                 Button {
                     if let id = conversation.id {
-                        viewModel.sendMessage(conversationId: id, text: messageText)
+                        viewModel.sendMessage(
+                            conversationId: id,
+                            listingId: conversation.listingId,
+                            listingAddress: conversation.listingAddress,
+                            tenantId: conversation.tenantId,
+                            landlordId: conversation.landlordId,
+                            tenantName: conversation.tenantName,
+                            text: messageText
+                        )
                         messageText = ""
                     }
                 } label: {

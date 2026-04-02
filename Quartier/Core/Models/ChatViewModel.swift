@@ -53,18 +53,72 @@ class ChatViewModel: ObservableObject {
             }
     }
     
-    func sendMessage(conversationId: String, text: String) {
+//    func sendMessage(conversationId: String, text: String) {
+//        guard let uid = Auth.auth().currentUser?.uid else { return }
+//        let msg = ChatMessage(conversationId: conversationId, senderId: uid, text: text, sentAt: Date())
+//        
+//        let docRef = db.collection("conversations").document(conversationId).collection("messages").document()
+//        try? docRef.setData(from: msg)
+//        
+//        db.collection("conversations").document(conversationId).updateData([
+//            "lastMessageText": text,
+//            "lastMessageAt": FieldValue.serverTimestamp()
+//        ])
+//    }
+    
+    
+    
+    
+    func sendMessage(
+        conversationId: String,
+        listingId: String,
+        listingAddress: String,
+        tenantId: String,
+        landlordId: String,
+        tenantName: String,
+        text: String
+    ) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-        let msg = ChatMessage(conversationId: conversationId, senderId: uid, text: text, sentAt: Date())
-        
-        let docRef = db.collection("conversations").document(conversationId).collection("messages").document()
-        try? docRef.setData(from: msg)
-        
-        db.collection("conversations").document(conversationId).updateData([
-            "lastMessageText": text,
+
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let conversationRef = db.collection("conversations").document(conversationId)
+        let messageRef = conversationRef.collection("messages").document()
+
+        let conversationData: [String: Any] = [
+            "listingId": listingId,
+            "listingAddress": listingAddress,
+            "tenantId": tenantId,
+            "landlordId": landlordId,
+            "tenantName": tenantName,
+            "lastMessageText": trimmed,
             "lastMessageAt": FieldValue.serverTimestamp()
-        ])
+        ]
+
+        let messageData: [String: Any] = [
+            "conversationId": conversationId,
+            "senderId": uid,
+            "text": trimmed,
+            "sentAt": FieldValue.serverTimestamp()
+        ]
+
+        let batch = db.batch()
+        batch.setData(conversationData, forDocument: conversationRef, merge: true)
+        batch.setData(messageData, forDocument: messageRef)
+
+        batch.commit { error in
+            if let error = error {
+                print("sendMessage error:", error.localizedDescription)
+            }
+        }
     }
+    
+    
+    
+    
+    
+    
     
     func cleanupMessages() {
         messagesListener?.remove()
