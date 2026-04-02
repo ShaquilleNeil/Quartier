@@ -4,14 +4,14 @@
 //
 //  Created by Shaquille O Neil on 2026-02-26.
 //
-
 import SwiftUI
 import SDWebImageSwiftUI
+import FirebaseFirestore
 
 struct TenantRentedDash: View {
     @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var firebase: FirebaseManager
-    @State private var listing: RemoteListing?
+    @State private var listing: Listing?
 
     var body: some View {
         ScrollView {
@@ -25,7 +25,7 @@ struct TenantRentedDash: View {
                 RentStatusCard(
                     price: listing?.price ?? 0,
                     address: listing?.address ?? auth.rentedAddress ?? "Your rental",
-                    imageURL: listing?.imageURLs.first
+                    imageURL: listing?.existingImageURLs.first
                 )
 
                 QuickActionsGrid()
@@ -48,7 +48,7 @@ struct TenantRentedDash: View {
     }
 
     private var subtitleLine: String {
-        if let b = listing?.buildingId, !b.isEmpty {
+        if let b = listing?.buildingID, !b.isEmpty {
             return "Building \(b)"
         }
         return "Quartier tenant"
@@ -59,8 +59,25 @@ struct TenantRentedDash: View {
             listing = nil
             return
         }
-        firebase.fetchListingById(listingId: id) { remote in
-            listing = remote
+        
+        Firestore.firestore().collection("listings").document(id).getDocument { snapshot, _ in
+            guard let data = snapshot?.data() else { return }
+            
+            var remoteListing = Listing(
+                buildingID: data["buildingId"] as? String ?? "",
+                landLordId: data["landLordId"] as? String ?? "",
+                price: data["price"] as? Double ?? 0,
+                bedrooms: data["bedrooms"] as? Int ?? 0,
+                bathrooms: data["bathrooms"] as? Int ?? 0
+            )
+            
+            remoteListing.listingID = UUID(uuidString: snapshot?.documentID ?? "") ?? UUID()
+            remoteListing.address = data["address"] as? String ?? ""
+            remoteListing.existingImageURLs = data["images"] as? [String] ?? []
+            
+            DispatchQueue.main.async {
+                self.listing = remoteListing
+            }
         }
     }
 }
@@ -184,7 +201,7 @@ private struct RentStatusCard: View {
         .cornerRadius(16)
         .shadow(radius: 4)
         .sheet(isPresented: $isPresentingPayRent) {
-            PayRentView()
+            Text("Pay Rent View")
         }
     }
 }
@@ -278,13 +295,4 @@ private struct UpdateCard: View {
         .background(.white)
         .cornerRadius(16)
     }
-}
-
-#Preview {
-    let firebase = FirebaseManager()
-    let auth = AuthService(firebase: firebase)
-
-    return TenantRentedDash()
-        .environmentObject(firebase)
-        .environmentObject(auth)
 }
