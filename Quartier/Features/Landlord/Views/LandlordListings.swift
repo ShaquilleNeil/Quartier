@@ -1,10 +1,3 @@
-//
-//  LandlordListings.swift
-//  Quartier
-//
-//  Created by Shaquille O Neil on 2026-01-29.
-//
-
 import SwiftUI
 import SDWebImageSwiftUI
 import FirebaseAuth
@@ -17,7 +10,10 @@ struct LandlordListings: View {
 
 private struct MyListingsView: View {
 
+    // MARK: - Properties & Environment
+    
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
+    
     private var currentUID: String {
         Auth.auth().currentUser?.uid ?? ""
     }
@@ -25,6 +21,7 @@ private struct MyListingsView: View {
     @State private var searchText: String = ""
     @State private var isAddingListing: Bool = false
     @State private var selectedMode: ListingMode = .drafts
+    
     @EnvironmentObject var firebase: FirebaseManager
     @EnvironmentObject var coreDataManager: CoreDataManager
     @Environment(\.managedObjectContext) var viewContext
@@ -40,33 +37,35 @@ private struct MyListingsView: View {
         case published = "Published"
         case rented = "Rented"
     }
+
+    // MARK: - Computed Data Models
     
     private var userDraftListings: [LDListing] {
         draftListings.filter { $0.landLordID == currentUID }
     }
 
-    /// Drafts that are not marked rented (rented drafts appear under Rented).
     private var draftRows: [LDListing] {
         userDraftListings.filter { !$0.isRented }
     }
 
-    /// Rented listings saved only in Core Data / not yet merged into the landlord’s Firebase query result.
     private var rentedDraftsNotOnFirebase: [LDListing] {
-        let remoteIds = Set(firebase.firebaseListings.map(\.id))
+        let remoteIds = Set(firebase.firebaseListings.map(\.listingID.uuidString))
         return userDraftListings.filter { listing in
             guard listing.isRented, let id = listing.id else { return false }
             return !remoteIds.contains(id.uuidString)
         }
     }
 
-    private func isRemoteListingRented(_ item: RemoteListing) -> Bool {
-        item.isEffectivelyRented
+    private func isRemoteListingRented(_ item: Listing) -> Bool {
+        item.isRented
     }
 
-    private func isRemoteListingPublished(_ item: RemoteListing) -> Bool {
-        item.status.lowercased() == "published" && !isRemoteListingRented(item)
+    private func isRemoteListingPublished(_ item: Listing) -> Bool {
+        item.status == .published && !item.isRented
     }
 
+    // MARK: - Main Body
+    
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottomTrailing) {
@@ -123,13 +122,14 @@ private struct MyListingsView: View {
                     EmptyView()
                 }
             }
-        }.onAppear{
+        }
+        .onAppear {
             firebase.fetchListingsLandlord()
         }
     }
 
-    // MARK: Draft View (Core Data)
-
+    // MARK: - List Views
+    
     private var draftListView: some View {
         VStack(spacing: 12) {
             ForEach(draftRows, id: \.objectID) { item in
@@ -144,10 +144,50 @@ private struct MyListingsView: View {
             }
         }
     }
+
+    private var publishedListView: some View {
+        VStack(spacing: 12) {
+            ForEach(firebase.firebaseListings.filter(isRemoteListingPublished)) { item in
+                NavigationLink(
+                    destination: ListingFormView(
+                        existingListing: item
+                    )
+                ) {
+                    remoteCard(item)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var rentedListView: some View {
+        VStack(spacing: 12) {
+            ForEach(firebase.firebaseListings.filter(isRemoteListingRented)) { item in
+                NavigationLink(
+                    destination: ListingFormView(
+                        existingListing: item
+                    )
+                ) {
+                    remoteCard(item)
+                }
+                .buttonStyle(.plain)
+            }
+            ForEach(rentedDraftsNotOnFirebase, id: \.objectID) { item in
+                NavigationLink(
+                    destination: ListingFormView(
+                        existingListing: convertDraftToListing(item)
+                    )
+                ) {
+                    draftCard(item, rentedLocal: true)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - Data Conversion
     
-
     private func convertDraftToListing(_ draft: LDListing) -> Listing {
-
         let decodedAmenities = draft.amenities as? [String] ?? []
 
         var listing = Listing(
@@ -179,12 +219,11 @@ private struct MyListingsView: View {
             .compactMap { UIImage(data: $0) }
     }
     
-    
+    // MARK: - Card Components
     
     private func draftCard(_ item: LDListing, rentedLocal: Bool) -> some View {
         HStack(spacing: 14) {
 
-            // Thumbnail
             if let images = item.draftImages as? Set<DraftImage>,
                let first = images.sorted(by: { $0.orderIndex < $1.orderIndex }).first,
                let data = first.imageData,
@@ -250,7 +289,7 @@ private struct MyListingsView: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 22)
-                .fill(.ultraThinMaterial) // glass effect
+                .fill(.ultraThinMaterial)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 22)
@@ -266,67 +305,11 @@ private struct MyListingsView: View {
             y: 6
         )
     }
-    
-    private func formattedPrice(_ price: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "CAD"
-        formatter.maximumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: price)) ?? "$\(price)"
-    }
 
-    // MARK: Published View (Firebase placeholder)
-
-    private var publishedListView: some View {
-        VStack(spacing: 12) {
-            ForEach(firebase.firebaseListings.filter(isRemoteListingPublished)) { item in
-                NavigationLink(
-                    destination: ListingFormView(
-                        existingListing: convertToEditableListing(item)
-                    )
-                ) {
-                    remoteCard(item)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    // MARK: Rented View (Firebase placeholder)
-
-    private var rentedListView: some View {
-        VStack(spacing: 12) {
-            ForEach(firebase.firebaseListings.filter(isRemoteListingRented)) { item in
-                NavigationLink(
-                    destination: ListingFormView(
-                        existingListing: convertToEditableListing(item)
-                    )
-                ) {
-                    remoteCard(item)
-                }
-                .buttonStyle(.plain)
-            }
-            ForEach(rentedDraftsNotOnFirebase, id: \.objectID) { item in
-                NavigationLink(
-                    destination: ListingFormView(
-                        existingListing: convertDraftToListing(item)
-                    )
-                ) {
-                    draftCard(item, rentedLocal: true)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func remoteCard(_ item: RemoteListing) -> some View {
-        
+    private func remoteCard(_ item: Listing) -> some View {
         HStack(spacing: 14) {
-          
             
-            
-            // Thumbnail from URL
-            if let firstURL = item.imageURLs.first,
+            if let firstURL = item.existingImageURLs.first,
                let url = URL(string: firstURL) {
 
                 WebImage(url: url)
@@ -334,7 +317,7 @@ private struct MyListingsView: View {
                         print("Image load failed:", error.localizedDescription)
                     }
                     .resizable()
-                    .indicator(.activity)   // built-in loading spinner
+                    .indicator(.activity)
                     .transition(.fade(duration: 0.25))
                     .scaledToFill()
                     .frame(width: 85, height: 85)
@@ -362,13 +345,13 @@ private struct MyListingsView: View {
 
                     Spacer()
 
-                    Text(item.status.capitalized)
+                    Text(item.status.rawValue.capitalized)
                         .font(.system(size: 11, weight: .bold))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(
                             Capsule()
-                                .fill(statusColor(for: item.status).opacity(0.18))
+                                .fill(statusColor(for: item.status.rawValue).opacity(0.18))
                         )
                 }
 
@@ -386,7 +369,7 @@ private struct MyListingsView: View {
         .overlay(
             RoundedRectangle(cornerRadius: 22)
                 .stroke(
-                    statusColor(for: item.status).opacity(0.25),
+                    statusColor(for: item.status.rawValue).opacity(0.25),
                     lineWidth: 1
                 )
         )
@@ -397,29 +380,17 @@ private struct MyListingsView: View {
             y: 6
         )
     }
-
-    private func convertToEditableListing(_ remote: RemoteListing) -> Listing {
-
-        var listing = Listing(
-            listingID: UUID(uuidString: remote.id) ?? UUID(),
-            buildingID: remote.buildingId,
-            landLordId: remote.landlordId,
-            price: remote.price,
-            bedrooms: remote.bedrooms,
-            bathrooms: remote.bathrooms
-        )
-
-        listing.amenities = remote.amenities
-        listing.status = ListingStatus(rawValue: remote.status) ?? .published
-        listing.rules = remote.rules
-        listing.images = []
-        listing.address = remote.address
-        listing.isRented = remote.isRented
-        listing.existingImageURLs = remote.imageURLs
-
-        return listing
-    }
     
+    // MARK: - Formatting Helpers
+
+    private func formattedPrice(_ price: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "CAD"
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: price)) ?? "$\(price)"
+    }
+
     private func statusColor(for status: String) -> Color {
         switch status.lowercased() {
         case "published":
@@ -430,17 +401,11 @@ private struct MyListingsView: View {
             return .gray
         }
     }
-    // MARK: Theme
 
     private var bg: Color {
         Color.white
     }
-
-    private var cardBg: Color {
-        Color(uiColor: .secondarySystemBackground)
-    }
 }
-
 
 #Preview {
     LandlordListings()
