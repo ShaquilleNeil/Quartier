@@ -39,8 +39,9 @@ struct ListingFormView: View {
             isEditing = true
         } else {
             _listing = State(initialValue: Listing(
-                buildingID: "",
+                listingName: "",
                 landLordId: "",
+                tenantId: "",
                 price: 0,
                 bedrooms: 0,
                 bathrooms: 0
@@ -58,7 +59,7 @@ struct ListingFormView: View {
                 imagePreviewRow
                 
               // BUILDING
-                TextField("Building ID", text: $listing.buildingID)
+                TextField("listing Name", text: $listing.listingName)
                     .modifier(FormCard())
                 
                 // PRICE
@@ -345,7 +346,7 @@ extension ListingFormView {
                         
                         firebase.saveListing(
                             listingId: listing.listingID,
-                            buildingId: listing.buildingID,
+                            listingName: listing.listingName,
                             landLordId: listing.landLordId,
                             price: listing.price,
                             squareFeet: listing.squareFeet,
@@ -408,7 +409,7 @@ extension ListingFormView {
 
                 firebase.saveListing(
                     listingId: listing.listingID,
-                    buildingId: listing.buildingID,
+                    listingName: listing.listingName
                     landLordId: listing.landLordId,
                     price: listing.price,
                     squareFeet: listing.squareFeet,

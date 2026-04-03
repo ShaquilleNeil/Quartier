@@ -16,7 +16,7 @@ struct NewListingView: View {
     var existingListing: LDListing?
 
     @State private var addressLine = ""
-    @State private var buildingIDLine = ""
+    @State private var listingName = ""
     @State private var priceMonthlyText = ""
     @State private var bedrooms: Int16 = 1
     @State private var bathrooms: Int16 = 1
@@ -36,7 +36,7 @@ struct NewListingView: View {
                 Section("Property") {
                     TextField("Address", text: $addressLine)
                         .textInputAutocapitalization(.words)
-                    TextField("Building ID", text: $buildingIDLine)
+                    TextField("listing Name", text: $listingName)
                         .textInputAutocapitalization(.words)
                 }
 
@@ -82,7 +82,7 @@ struct NewListingView: View {
     private func loadExisting() {
         guard let listing = existingListing else { return }
         addressLine = listing.address ?? ""
-        buildingIDLine = listing.buildingID ?? ""
+        listingName = listing.listingName ?? ""
         priceMonthlyText = listing.price > 0 ? String(format: "%.0f", listing.price) : ""
         bedrooms = listing.bedrooms
         bathrooms = listing.bathrooms
@@ -107,7 +107,7 @@ struct NewListingView: View {
         let now = Date()
         if let listing = existingListing {
             listing.address = addressLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            listing.buildingID = buildingIDLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            listing.listingName = listingName.trimmingCharacters(in: .whitespacesAndNewlines)
             listing.price = price
             listing.bedrooms = bedrooms
             listing.bathrooms = bathrooms
@@ -117,7 +117,7 @@ struct NewListingView: View {
             let listing = LDListing(context: viewContext)
             listing.id = UUID()
             listing.address = addressLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            listing.buildingID = buildingIDLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            listing.listingName= listingName.trimmingCharacters(in: .whitespacesAndNewlines)
             listing.price = price
             listing.bedrooms = bedrooms
             listing.bathrooms = bathrooms

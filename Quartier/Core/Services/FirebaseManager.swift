@@ -23,6 +23,7 @@ class FirebaseManager: ObservableObject {
     @Published var firebaseListings: [Listing] = []
     @Published var favoriteIds: Set<String> = []
     @Published var userPreferences: Preferences? = nil
+    @Published var tenants: [TenantItem] = []
     
     // MARK: - State Management
     
@@ -130,7 +131,10 @@ class FirebaseManager: ObservableObject {
         db.collection("listings").whereField("landLordId", isEqualTo: landLordId).getDocuments { snapshot, _ in
             guard let documents = snapshot?.documents else { return }
             self.parseListings(documents: documents) { listings in
-                self.firebaseListings = listings.sorted { $0.price > $1.price } // Sorted for consistency
+                DispatchQueue.main.async {
+                                     
+                                       self.firebaseListings = listings.sorted { $0.updatedAt > $1.updatedAt }
+                                   }
             }
         }
     }
@@ -139,19 +143,25 @@ class FirebaseManager: ObservableObject {
         db.collection("listings").whereField("isRented", isEqualTo: false).getDocuments { snapshot, _ in
             guard let documents = snapshot?.documents else { return }
             self.parseListings(documents: documents) { listings in
-                self.allListings = listings
-                self.fetchUserFavorites()
+                DispatchQueue.main.async {
+                                        self.allListings = listings
+                                        self.fetchUserFavorites()
+                                    }
             }
         }
     }
     
-    private func parseListings(documents: [QueryDocumentSnapshot], completion: @escaping ([Listing]) -> Void) {
+    private func parseListings(
+        documents: [QueryDocumentSnapshot],
+        completion: @escaping ([Listing]) -> Void
+    ) {
         var fetchedListings: [Listing] = []
         
         for doc in documents {
             let data = doc.data()
+            
             var listing = Listing(
-                buildingID: data["buildingId"] as? String ?? "",
+                listingName: data["listingName"] as? String ?? "",
                 landLordId: data["landLordId"] as? String ?? "",
                 price: data["price"] as? Double ?? 0,
                 bedrooms: data["bedrooms"] as? Int ?? 0,
@@ -159,62 +169,95 @@ class FirebaseManager: ObservableObject {
             )
             
             listing.listingID = UUID(uuidString: doc.documentID) ?? UUID()
+            listing.tenantId = data["tenantId"] as? String ?? ""
+            
             listing.address = data["address"] as? String ?? ""
             listing.squareFeet = data["squareFeet"] as? Int ?? 0
             listing.isRented = Self.firestoreBool(data["isRented"])
             listing.amenities = data["amenities"] as? [String] ?? []
             listing.rules = data["rules"] as? String ?? ""
             listing.existingImageURLs = data["images"] as? [String] ?? []
+            listing.createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+            listing.updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
             
             if let location = data["location"] as? GeoPoint {
                 listing.latitude = location.latitude
                 listing.longitude = location.longitude
             }
             
-            if let statusRaw = data["status"] as? String, let st = ListingStatus(rawValue: statusRaw.lowercased()) {
+            if let statusRaw = data["status"] as? String,
+               let st = ListingStatus(rawValue: statusRaw.lowercased()) {
                 listing.status = st
             }
             
             fetchedListings.append(listing)
         }
         
-        DispatchQueue.main.async {
-            completion(fetchedListings)
-        }
+        completion(fetchedListings)
     }
     
-    func saveListing(listingId: UUID, buildingId: String, landLordId: String, price: Double, squareFeet: Int, latitude: Double, longitude: Double, bedrooms: Int, bathrooms: Int, amenities: [String], status: ListingStatus, rules: String, imageURLs: [String], address: String, isRented: Bool, completion: ((Result<Void, Error>) -> Void)? = nil) {
-        let listingData: [String: Any] = [
-            "id": listingId.uuidString,
-            "buildingId": buildingId,
-            "landLordId": landLordId,
-            "price": price,
-            "squareFeet": squareFeet,
-            "bedrooms": bedrooms,
-            "bathrooms": bathrooms,
-            "amenities": amenities,
-            "status": status.rawValue,
-            "rules": rules,
-            "images": imageURLs,
-            "address": address,
-            "location": GeoPoint(latitude: latitude, longitude: longitude),
-            "isRented": isRented,
-            "createdAt": FieldValue.serverTimestamp(),
-            "updatedAt": FieldValue.serverTimestamp()
-        ]
-        
-        db.collection("listings").document(listingId.uuidString).setData(listingData, merge: true) { error in
-            if let error = error {
-                completion?(.failure(error))
-            } else {
-                completion?(.success(()))
-            }
-        }
-    }
+    
+    
+    func saveListing(
+           listingId: UUID,
+           listingName: String,
+           landLordId: String,
+           tenantId: String,
+           price: Double,
+           squareFeet: Int,
+           latitude: Double,
+           longitude: Double,
+           bedrooms: Int,
+           bathrooms: Int,
+           amenities: [String],
+           status: ListingStatus,
+           rules: String,
+           imageURLs: [String],
+           address: String,
+           isRented: Bool,
+           completion: ((Result<Void, Error>) -> Void)? = nil
+       ) {
+           
+           var data: [String: Any] = [
+               "id": listingId.uuidString,
+               "listingName": listingName,
+               "landLordId": landLordId,
+               "tenantId": tenantId,
+               "price": price,
+               "squareFeet": squareFeet,
+               "bedrooms": bedrooms,
+               "bathrooms": bathrooms,
+               "amenities": amenities,
+               "status": status.rawValue,
+               "rules": rules,
+               "images": imageURLs,
+               "address": address,
+               "location": GeoPoint(latitude: latitude, longitude: longitude),
+               "isRented": isRented,
+               "updatedAt": FieldValue.serverTimestamp()
+           ]
+           
+           let ref = db.collection("listings").document(listingId.uuidString)
+           
+           ref.getDocument { snapshot, _ in
+               if snapshot?.exists != true {
+                   data["createdAt"] = FieldValue.serverTimestamp()
+               }
+               
+               ref.setData(data, merge: true) { error in
+                   if let error = error {
+                       completion?(.failure(error))
+                   } else {
+                       completion?(.success(()))
+                   }
+               }
+           }
+       }
 
-    func updateListing(listingId: String, buildingId: String, price: Double, bedrooms: Int, bathrooms: Int, amenities: [String], rules: String, address: String, isRented: Bool, imageURLs: [String], squareFeet: Int, latitude: Double, longitude: Double) {
+    func updateListing(listingId: String, listingName: String, tenantId: String, price: Double, bedrooms: Int, bathrooms: Int, amenities: [String], rules: String, address: String, isRented: Bool, imageURLs: [String], squareFeet: Int, latitude: Double, longitude: Double) {
         let updatedData: [String: Any] = [
-            "buildingId": buildingId,
+            "listingName": listingName,
+            "tenantId": tenantId,
             "price": price,
             "squareFeet": squareFeet,
             "bedrooms": bedrooms,
@@ -410,4 +453,102 @@ class FirebaseManager: ObservableObject {
         db.collection("users").document(uid).collection("preferences").document("tenant").updateData(data)
         self.fetchUserPreferences()
     }
+    
+    //MARK: SHAQUILLE
+       func fetchAllTenants(completion: @escaping ([TenantItem]) -> Void) {
+           db.collection("users")
+               .whereField("role", isEqualTo: "tenant")
+               .getDocuments { snapshot, error in
+                   
+                   guard error == nil else {
+                       print("Fetch tenants error:", error!.localizedDescription)
+                       completion([])
+                       return
+                   }
+                   
+                   guard let documents = snapshot?.documents else {
+                       completion([])
+                       return
+                   }
+                   
+                   let tenants = documents.compactMap { doc -> TenantItem? in
+                       let data = doc.data()
+                       
+                       let email = (data["email"] as? String ?? "")
+                           .trimmingCharacters(in: .whitespacesAndNewlines)
+                           .lowercased()
+                       
+                       guard !email.isEmpty else { return nil }
+                       
+                       return TenantItem(
+                           id: doc.documentID,
+                           email: email
+                       )
+                   }
+                   .sorted { $0.email < $1.email }
+                   
+                   completion(tenants)
+               }
+       }
+    
+    func assignTenantToListing(
+        listingId: String,
+        tenantId: String,
+        completion: ((Error?) -> Void)? = nil
+    )
+    {
+
+        let listingRef = db.collection("listings").document(listingId)
+        let userRef = db.collection("users").document(tenantId)
+
+        let batch = db.batch()
+
+ 
+        batch.updateData([
+            "tenantId": tenantId,
+            "isRented": true,
+            "updatedAt": FieldValue.serverTimestamp()
+        ], forDocument: listingRef)
+
+       
+        batch.updateData([
+            "isRenting": true,
+            "apartmentId": listingId
+        ], forDocument: userRef)
+
+        batch.commit { error in
+            completion?(error)
+        }
+    }
+    
+    func removeTenantFromListing(listingId: String, previousTenantId: String) {
+        
+        let batch = db.batch()
+        
+        let listingRef = db.collection("listings").document(listingId)
+        let userRef = db.collection("users").document(previousTenantId)
+        
+      
+        batch.updateData([
+            "tenantId": "",
+            "isRented": false
+        ], forDocument: listingRef)
+        
+      
+        batch.updateData([
+            "isRenting": false,
+            "apartmentId": ""
+        ], forDocument: userRef)
+        
+        batch.commit { error in
+            if let error = error {
+                print("Remove tenant error:", error.localizedDescription)
+            } else {
+                print("Tenant removed successfully")
+            }
+        }
+    }
 }
+    
+    
+    

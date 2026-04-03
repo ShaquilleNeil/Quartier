@@ -173,8 +173,9 @@ final class FirebaseSync {
             return
         }
 
-        item.buildingID = data["buildingId"] as? String
+        item.listingName = data["listingName"] as? String
         item.landLordID = data["landLordId"] as? String
+        item.tenantID = data["tenantId"] as? String
         item.price = data["price"] as? Double ?? 0.0
         item.bedrooms = data["bedrooms"] as? Int16 ?? 0
         item.bathrooms = data["bathrooms"] as? Int16 ?? 0
@@ -220,8 +221,9 @@ final class FirebaseSync {
     //serialise (change obj)
     private func serialise(listing: LDListing) -> [String: Any] {
         return [
-            "buildingId": listing.buildingID ?? "",
+            "listingName": listing.listingName ?? "",
             "landLordId": listing.landLordID ?? "",
+            "tenantId": listing.tenantID ?? "",
             "price": listing.price,
             "bedrooms": listing.bedrooms,
             "bathrooms": listing.bathrooms,

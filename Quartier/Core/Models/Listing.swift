@@ -7,8 +7,9 @@ struct Listing: Identifiable, Codable {
     var id: UUID { listingID }
 
     var listingID: UUID = UUID()
-    var buildingID: String = ""
+    var listingName: String = ""
     var landLordId: String = ""
+    var tenantId: String = ""
 
     var price: Double = 0
     var bedrooms: Int = 0
@@ -31,16 +32,17 @@ struct Listing: Identifiable, Codable {
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 
+   
     init(
         listingID: UUID = UUID(),
-        buildingID: String,
+        listingName: String,
         landLordId: String,
         price: Double,
         bedrooms: Int,
         bathrooms: Int
     ) {
         self.listingID = listingID
-        self.buildingID = buildingID
+        self.listingName = listingName
         self.landLordId = landLordId
         self.price = price
         self.bedrooms = bedrooms
@@ -49,11 +51,13 @@ struct Listing: Identifiable, Codable {
 
     enum CodingKeys: String, CodingKey {
         case listingID
-        case buildingID
+        case listingName
         case landLordId
+        case tenantId  
         case price
         case bedrooms
         case bathrooms
+        case squareFeet
         case amenities
         case rules
         case address

@@ -175,7 +175,8 @@ class CoreDataManager: ObservableObject {
         }
 
         entity.landLordID = currentUID
-        entity.buildingID = listing.buildingID
+        entity.listingName = listing.listingName
+        entity.tenantID = listing.tenantId
         entity.price = listing.price
         entity.bedrooms = Int16(listing.bedrooms)
         entity.bathrooms = Int16(listing.bathrooms)

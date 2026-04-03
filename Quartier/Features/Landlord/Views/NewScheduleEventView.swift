@@ -96,7 +96,7 @@ struct NewScheduleEventView: View {
                                     HStack {
                                         Text(listing.address ?? "Untitled")
                                             .foregroundStyle(.primary)
-                                        if let b = listing.buildingID, !b.isEmpty {
+                                        if let b = listing.listingName, !b.isEmpty {
                                             Text("• \(b)")
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)

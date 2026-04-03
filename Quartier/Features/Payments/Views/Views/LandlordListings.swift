@@ -130,8 +130,9 @@ private struct MyListingsView: View {
 
         var listing = Listing(
             listingID: draft.id ?? UUID(),
-            buildingID: draft.buildingID ?? "",
+            listingName: draft.listingName?? "",
             landLordId: draft.landLordID ?? "",
+            tenantId: draft.tenantID ?? "",
             price: draft.price,
             bedrooms: Int(draft.bedrooms),
             bathrooms: Int(draft.bathrooms)

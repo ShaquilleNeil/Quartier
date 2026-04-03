@@ -48,7 +48,7 @@ struct TenantRentedDash: View {
     }
 
     private var subtitleLine: String {
-        if let b = listing?.buildingID, !b.isEmpty {
+        if let b = listing?.listingName, !b.isEmpty {
             return "Building \(b)"
         }
         return "Quartier tenant"
@@ -64,7 +64,7 @@ struct TenantRentedDash: View {
             guard let data = snapshot?.data() else { return }
             
             var remoteListing = Listing(
-                buildingID: data["buildingId"] as? String ?? "",
+                listingName: data["listingName"] as? String ?? "",
                 landLordId: data["landLordId"] as? String ?? "",
                 price: data["price"] as? Double ?? 0,
                 bedrooms: data["bedrooms"] as? Int ?? 0,

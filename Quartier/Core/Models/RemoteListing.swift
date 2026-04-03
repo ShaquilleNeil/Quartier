@@ -10,7 +10,7 @@ import Foundation
 struct RemoteListing: Identifiable {
 
     let id: String
-    let buildingId: String
+    let listingName: String
     let landlordId: String
 
     let price: Double
