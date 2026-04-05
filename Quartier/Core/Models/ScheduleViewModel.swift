@@ -28,6 +28,7 @@ class ScheduleViewModel: ObservableObject {
     
     private let db = Firestore.firestore()
     private var listener: ListenerRegistration?
+    private var scopeAllListener: ListenerRegistration?
     
     func loadEvents() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
@@ -36,35 +37,52 @@ class ScheduleViewModel: ObservableObject {
             .whereField("landlordId", isEqualTo: uid)
             .order(by: "startAt", descending: false)
             .addSnapshotListener { snapshot, error in
-                if let error = error {
-                    print("Error fetching schedule: \(error.localizedDescription)")
-                    return
-                }
                 guard let documents = snapshot?.documents else { return }
-                // Real-time sync from Firebase
                 self.events = documents.compactMap { try? $0.data(as: ScheduleEvent.self) }
             }
     }
     
+    func loadTenantEvents(listingId: String) {
+        cleanup()
+        
+        listener = db.collection("schedules")
+            .whereField("listingIds", arrayContains: listingId)
+            .addSnapshotListener { snapshot, _ in
+                self.mergeTenantEvents(snapshot: snapshot)
+            }
+            
+        scopeAllListener = db.collection("schedules")
+            .whereField("scopeAll", isEqualTo: true)
+            .addSnapshotListener { snapshot, _ in
+                self.mergeTenantEvents(snapshot: snapshot)
+            }
+    }
+    
+    private func mergeTenantEvents(snapshot: QuerySnapshot?) {
+        guard let docs = snapshot?.documents else { return }
+        let newEvents = docs.compactMap { try? $0.data(as: ScheduleEvent.self) }
+        
+        for event in newEvents {
+            if let idx = events.firstIndex(where: { $0.id == event.id }) {
+                events[idx] = event
+            } else {
+                events.append(event)
+            }
+        }
+        events.sort { $0.startAt < $1.startAt }
+    }
+    
     func saveEvent(id: String?, title: String, notes: String?, startAt: Date, endAt: Date, allDay: Bool, scopeAll: Bool, listingIds: [String]) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
-        
         let collection = db.collection("schedules")
         let docRef = id != nil ? collection.document(id!) : collection.document()
         
         let event = ScheduleEvent(
-            id: docRef.documentID,
-            landlordId: uid,
-            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-            notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines),
-            startAt: startAt,
-            endAt: endAt,
-            allDay: allDay,
-            scopeAll: scopeAll,
-            listingIds: listingIds
+            id: docRef.documentID, landlordId: uid, title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines), startAt: startAt, endAt: endAt,
+            allDay: allDay, scopeAll: scopeAll, listingIds: listingIds
         )
         
-        // MARK: Optimistic UI Update
         if let index = events.firstIndex(where: { $0.id == event.id }) {
             events[index] = event
         } else {
@@ -77,16 +95,12 @@ class ScheduleViewModel: ObservableObject {
     
     func deleteEvent(_ event: ScheduleEvent) {
         guard let id = event.id else { return }
-        
-        // MARK: Optimistic UI Delete (Instant visual remove)
-        withAnimation {
-            events.removeAll { $0.id == id }
-        }
-
+        withAnimation { events.removeAll { $0.id == id } }
         db.collection("schedules").document(id).delete()
     }
     
     func cleanup() {
         listener?.remove()
+        scopeAllListener?.remove()
     }
 }

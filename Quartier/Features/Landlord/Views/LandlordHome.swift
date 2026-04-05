@@ -233,16 +233,18 @@ private struct LandlordDashboardView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(border, lineWidth: 1))
     }
 
-    private func formatEventTime(_ event: ScheduleEvent) -> String {
-        let formatter = DateFormatter()
-        if event.allDay {
-            formatter.dateStyle = .medium
-            formatter.timeStyle = .none
-            return "\(formatter.string(from: event.startAt)) • All day"
-        } else {
-            formatter.dateStyle = .medium
-            formatter.timeStyle = .short
-            return formatter.string(from: event.startAt)
+    // MARK: - Helper Methods
+        private func formatEventTime(_ event: ScheduleEvent) -> String {
+            let formatter = DateFormatter()
+            if event.allDay {
+                formatter.dateStyle = .medium
+                formatter.timeStyle = .none
+                return "\(formatter.string(from: event.startAt)) • All day"
+            } else {
+                formatter.dateStyle = .medium
+                formatter.timeStyle = .short
+                return formatter.string(from: event.startAt)
+            
         }
     }
 }

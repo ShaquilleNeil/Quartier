@@ -2,17 +2,15 @@
 //  TenantTabView.swift
 //  Quartier
 //
-
+// MARK: - TenantTabView.swift
 import SwiftUI
 import Combine
 
 struct TenantTabView: View {
-    
     @EnvironmentObject var authService: AuthService
     
     var body: some View {
         TabView {
-            
             Group {
                 if authService.isRenting {
                     TenantRentedDash()
@@ -37,11 +35,6 @@ struct TenantTabView: View {
             TenantMessages()
                 .tabItem {
                     Label("Messages", systemImage: "message.fill")
-                }
-
-            TenantSchedule()
-                .tabItem {
-                    Label("Agenda", systemImage: "calendar")
                 }
 
             TenantProfile()

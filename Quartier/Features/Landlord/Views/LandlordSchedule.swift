@@ -157,14 +157,19 @@ struct LandlordSchedule: View {
         return "\(matchedListings.first?.address ?? "Multiple") + \(matchedListings.count - 1) more"
     }
 
-    private func formatEventTime(_ event: ScheduleEvent) -> String {
-        let formatter = DateFormatter()
-        if event.allDay { return "All day" }
-        formatter.timeStyle = .short
-        var text = formatter.string(from: event.startAt)
-        text += " – \(formatter.string(from: event.endAt))"
-        return text
-    }
+    // MARK: - Helper Methods
+        private func formatEventTime(_ event: ScheduleEvent) -> String {
+            let formatter = DateFormatter()
+            if event.allDay {
+                formatter.dateStyle = .medium
+                formatter.timeStyle = .none
+                return "\(formatter.string(from: event.startAt)) • All day"
+            } else {
+                formatter.dateStyle = .medium
+                formatter.timeStyle = .short
+                return formatter.string(from: event.startAt)
+            }
+        }
 
     private func scheduleRow(title: String, address: String, time: String) -> some View {
         HStack(spacing: 12) {

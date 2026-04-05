@@ -2,196 +2,137 @@
 //  TenantSchedule.swift
 //  Quartier
 //
-//  Created by Shaquille O Neil on 2026-01-29.
-//
 
 import SwiftUI
+import FirebaseAuth
+import FirebaseFirestore
 
 struct TenantSchedule: View {
+    // MARK: - Properties
+    @StateObject private var scheduleVM = ScheduleViewModel()
+    @EnvironmentObject var auth: AuthService
+    @Environment(\.dismiss) private var dismiss
     
     @State private var selectedDate = Date()
 
-    
+    // MARK: - Computed Properties
+    private var eventsOnSelectedDay: [ScheduleEvent] {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: selectedDate)
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+        return scheduleVM.events.filter { $0.startAt >= start && $0.startAt < end }
+    }
+
+    // MARK: - Body
     var body: some View {
-        NavigationStack {
-            ZStack {
-              
-                    VStack(alignment: .leading, spacing: 24) {
-                        
-//                        HeaderView(monthTitle: monthTitle)
-                        
-                        
-                        DatePicker("", selection: $selectedDate, displayedComponents: .date)
-                            .datePickerStyle(.graphical)
-                            .frame(height: 300)
-                        
-                      Divider()
-                        
-                        ScheduleTimelineView()
-                            .frame(maxHeight: .infinity)
-                        
-                        
+        ZStack(alignment: .bottomTrailing) {
+            Color(.systemGroupedBackground).ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    
+                    // MARK: Header
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Schedule")
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                        }
+                        Spacer()
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundColor(.gray)
+                        }
                     }
-                    .padding()
-                 
-                
-            }
-            .navigationBarHidden(true)
-            .background(Color(.systemBackground))
-        }
-    }
-}
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
 
-//////////////////////////////////////////////////////////////////
-// MARK: Header
-//////////////////////////////////////////////////////////////////
+                    // MARK: Calendar Picker
+                    DatePicker("", selection: $selectedDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .padding(12)
+                        .background(RoundedRectangle(cornerRadius: 18).fill(Color(.secondarySystemBackground)))
+                        .padding(.horizontal, 16)
 
-private struct HeaderView: View {
-    
-    let monthTitle: String
-    
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Schedule")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                
-                Text(monthTitle)
-                    .foregroundColor(.blue)
-            }
-            
-            Spacer()
-            
-            HStack(spacing: 16) {
-                Circle()
-                    .fill(Color.blue.opacity(0.15))
-                    .frame(width: 40, height: 40)
-                    .overlay(Image(systemName: "magnifyingglass"))
-                
-                Circle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 40, height: 40)
+                    // MARK: Events List
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Appointments")
+                            .font(.system(size: 18, weight: .bold))
+                            .padding(.horizontal, 16)
+
+                        if eventsOnSelectedDay.isEmpty {
+                            Text("No events scheduled for this day.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16)
+                        } else {
+                            ForEach(eventsOnSelectedDay) { event in
+                                ScheduleCard(
+                                    title: event.title,
+                                    subtitle: formatEventTime(event),
+                                    notes: event.notes
+                                )
+                                .padding(.horizontal, 16)
+                            }
+                        }
+                    }
+                }
+                .padding(.bottom, 32)
             }
         }
-    }
-}
-
-
-//////////////////////////////////////////////////////////////////
-// MARK: Timeline (still static for now)
-//////////////////////////////////////////////////////////////////
-
-private struct ScheduleTimelineView: View {
-    
-    var body: some View {
-        ScrollView{
-            
-            VStack(alignment: .leading, spacing: 32)
-            {
-                
-                Text("08:00 AM")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                ScheduleCard(
-                    category: "Maintenance",
-                    title: "Plumbing Repair",
-                    subtitle: "Kitchen Sink Leak • Unit 402",
-                    accentColor: .red
-                )
-                
-                NowIndicator()
-                
-                Text("11:00 AM")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                ScheduleCard(
-                    category: "Finance",
-                    title: "Rent Payment Due",
-                    subtitle: "Total: $1,450.00",
-                    accentColor: .green
-                )
-                
-                Text("01:00 PM")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                ScheduleCard(
-                    category: "Administration",
-                    title: "Move-in Inspection",
-                    subtitle: "New Tenant: Sarah Miller • Unit 105",
-                    accentColor: .blue
-                )
+        .navigationBarHidden(true)
+        // MARK: - Lifecycle Modifiers
+        .onAppear {
+            if let id = auth.rentedListingId {
+                scheduleVM.loadTenantEvents(listingId: id)
             }
-            
         }
-        
     }
+    
+    // MARK: - Helper Methods
+        private func formatEventTime(_ event: ScheduleEvent) -> String {
+            let formatter = DateFormatter()
+            if event.allDay {
+                formatter.dateStyle = .medium
+                formatter.timeStyle = .none
+                return "\(formatter.string(from: event.startAt)) • All day"
+            } else {
+                formatter.dateStyle = .medium
+                formatter.timeStyle = .short
+                return formatter.string(from: event.startAt)
+            }
+        }
 }
 
-//////////////////////////////////////////////////////////////////
-// MARK: Card
-//////////////////////////////////////////////////////////////////
-
+// MARK: - Subviews
 private struct ScheduleCard: View {
-    
-    let category: String
     let title: String
     let subtitle: String
-    let accentColor: Color
+    let notes: String?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            
-            Text(category.uppercased())
-                .font(.caption)
-                .foregroundColor(accentColor)
-            
             Text(title)
                 .font(.headline)
-            
             Text(subtitle)
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.blue)
+            
+            if let notes = notes, !notes.isEmpty {
+                Text(notes)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.secondarySystemBackground))
         )
     }
 }
-
-//////////////////////////////////////////////////////////////////
-// MARK: Now Indicator
-//////////////////////////////////////////////////////////////////
-
-private struct NowIndicator: View {
-    var body: some View {
-        HStack {
-            Circle()
-                .fill(Color.blue)
-                .frame(width: 8, height: 8)
-            
-            Rectangle()
-                .fill(Color.blue)
-                .frame(height: 2)
-            
-            Text("NOW")
-                .font(.caption)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.blue.opacity(0.15))
-                .foregroundColor(.blue)
-                .clipShape(Capsule())
-        }
-    }
-}
-
-#Preview {
-    TenantSchedule()
-}
-
