@@ -60,7 +60,7 @@ struct ListingFormView: View {
 
                 photoPicker
                 imagePreviewRow
-
+                TextField("Name", text: $listing.listingName)
                 priceSection
                 addressSection
                 detailsSection

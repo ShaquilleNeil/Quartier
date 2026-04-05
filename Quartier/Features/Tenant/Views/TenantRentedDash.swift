@@ -11,6 +11,7 @@ import FirebaseFirestore
 struct TenantRentedDash: View {
     @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var firebase: FirebaseManager
+    @State private var listener: ListenerRegistration?
     @State private var listing: Listing?
 
     var body: some View {
@@ -35,7 +36,16 @@ struct TenantRentedDash: View {
             .padding()
         }
         .background(Color(.systemGray6))
-        .onAppear(perform: loadListing)
+        .onAppear {
+           loadListing()
+        }
+        .onChange(of: firebase.currentUser?.apartmentId) { _, newValue in
+            guard let id = newValue, !id.isEmpty else { return }
+            loadListing()
+        }
+        .onDisappear {
+            listener?.remove()
+        }
         .onChange(of: auth.rentedListingId) { _, _ in
             loadListing()
         }
@@ -59,25 +69,11 @@ struct TenantRentedDash: View {
             listing = nil
             return
         }
-        
-        Firestore.firestore().collection("listings").document(id).getDocument { snapshot, _ in
-            guard let data = snapshot?.data() else { return }
-            
-            var remoteListing = Listing(
-                listingName: data["listingName"] as? String ?? "",
-                landLordId: data["landLordId"] as? String ?? "",
-                price: data["price"] as? Double ?? 0,
-                bedrooms: data["bedrooms"] as? Int ?? 0,
-                bathrooms: data["bathrooms"] as? Int ?? 0
-            )
-            
-            remoteListing.listingID = UUID(uuidString: snapshot?.documentID ?? "") ?? UUID()
-            remoteListing.address = data["address"] as? String ?? ""
-            remoteListing.existingImageURLs = data["images"] as? [String] ?? []
-            
-            DispatchQueue.main.async {
-                self.listing = remoteListing
-            }
+
+        listener?.remove()
+
+        listener = firebase.listenToListing(listingId: id) { updated in
+            self.listing = updated
         }
     }
 }
@@ -209,10 +205,10 @@ private struct RentStatusCard: View {
 private struct QuickActionsGrid: View {
 
     let items = [
-        ("Maintenance", "wrench"),
-        ("Lost Keys", "key"),
-        ("Amenities", "calendar"),
-        ("Emergency", "exclamationmark.triangle.fill")
+        ("Lease", "doc.text.fill"),
+        ("Emergency", "exclamationmark.triangle.fill"),
+        ("Maintenance", "wrench.fill"),
+        ("Upcoming", "calendar")
     ]
 
     let columns = [GridItem(.flexible()), GridItem(.flexible())]

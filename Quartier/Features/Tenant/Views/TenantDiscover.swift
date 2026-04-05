@@ -2,8 +2,7 @@
 //  TenantDiscover.swift
 //  Quartier
 //
-//  Created by Shaquille O Neil on 2026-01-29.
-//
+
 import SwiftUI
 import MapKit
 import SDWebImageSwiftUI
@@ -11,11 +10,15 @@ import FirebaseAuth
 
 struct TenantDiscover: View {
 
-    // MARK: - Properties & Environment
+    // MARK: - Environment
     
     @EnvironmentObject var firebase: FirebaseManager
+    @EnvironmentObject var authService: AuthService
+
     @StateObject private var locationManager = LocationManager()
 
+    // MARK: - State
+    
     @State private var currentUserID: String? = Auth.auth().currentUser?.uid
     @State private var currentRent: Double?
 
@@ -27,12 +30,51 @@ struct TenantDiscover: View {
 
     @State private var selectedListing: ListingSelection?
 
+
+    @State private var selectedTab: TenantTab = .discover
+
     private let minZoom: CLLocationDistance = 500
     private let maxZoom: CLLocationDistance = 20000
 
-    // MARK: - Main Body
+    // MARK: - Body
     
     var body: some View {
+        VStack(spacing: 0) {
+            
+      
+            if authService.isRenting {
+                Picker("", selection: $selectedTab) {
+                    Text("Home").tag(TenantTab.home)
+                    Text("Discover").tag(TenantTab.discover)
+                }
+                .pickerStyle(.segmented)
+                .padding()
+            }
+            
+         
+            ZStack {
+                if authService.isRenting {
+                    switch selectedTab {
+                    case .home:
+                        TenantHome()
+                    case .discover:
+                        discoverMapView
+                    }
+                } else {
+                    discoverMapView
+                }
+            }
+        }
+        .onAppear {
+            setupCameraFallback()
+            loadUserRent()
+            firebase.fetchUserPreferences()
+        }
+    }
+
+    // MARK: - Discover Map Extracted
+    
+    private var discoverMapView: some View {
         ZStack {
             Map(position: $camera) {
                 UserAnnotation()
@@ -69,27 +111,20 @@ struct TenantDiscover: View {
                     MapCamera(centerCoordinate: loc, distance: zoomLevel)
                 )
             }
-            .onAppear {
-                setupCameraFallback()
-                loadUserRent()
-                // Fetch preferences so we can use the budget for the map pins
-                firebase.fetchUserPreferences()
-            }
 
             zoomControls
         }
     }
-    
-    // MARK: - Annotation View
+
+    // MARK: - Annotation UI
     
     @ViewBuilder
     private func annotationContent(for listing: Listing) -> some View {
         VStack(spacing: 2) {
-            // Price Tag & Difference
+
             VStack(spacing: 2) {
                 Text("$\(Int(listing.price))")
                     .font(.caption2.bold())
-                    .foregroundColor(.primary)
 
                 if let diff = priceDifferenceText(for: listing.price) {
                     Text(diff)
@@ -103,8 +138,9 @@ struct TenantDiscover: View {
             .clipShape(Capsule())
             .shadow(radius: 2)
 
-            // Image Pin
-            if let firstImage = listing.existingImageURLs.first, let url = URL(string: firstImage) {
+            if let firstImage = listing.existingImageURLs.first,
+               let url = URL(string: firstImage) {
+
                 WebImage(url: url)
                     .resizable()
                     .indicator(.activity)
@@ -123,16 +159,14 @@ struct TenantDiscover: View {
                     .shadow(radius: 3)
             }
 
-            // Pointer
             Image(systemName: "triangle.fill")
                 .font(.system(size: 10))
                 .foregroundColor(.white)
                 .offset(y: -6)
-                .shadow(radius: 1)
         }
     }
-    
-    // MARK: - Zoom Controls UI
+
+    // MARK: - Zoom Controls
     
     private var zoomControls: some View {
         VStack {
@@ -140,24 +174,21 @@ struct TenantDiscover: View {
             HStack {
                 Spacer()
                 VStack(spacing: 12) {
+
                     Button { zoomIn() } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.title2)
                             .padding()
-                            .foregroundStyle(.white)
                             .background(.ultraThinMaterial)
                             .clipShape(Circle())
-                            .shadow(radius: 4)
                     }
 
                     Button { zoomOut() } label: {
                         Image(systemName: "minus.circle.fill")
                             .font(.title2)
                             .padding()
-                            .foregroundStyle(.white)
                             .background(.ultraThinMaterial)
                             .clipShape(Circle())
-                            .shadow(radius: 4)
                     }
                 }
             }
@@ -165,8 +196,8 @@ struct TenantDiscover: View {
         .padding()
     }
 
-    // MARK: - Logic & Helpers
-
+    // MARK: - Logic
+    
     private func loadUserRent() {
         guard let uid = currentUserID else { return }
         firebase.fetchCurrentUserRent(uid: uid) { rent in
@@ -177,28 +208,18 @@ struct TenantDiscover: View {
     private func priceDifferenceText(for listingPrice: Double) -> String? {
         let baseline: Double
         
-        // 1. If they currently rent a place, compare to their active lease
-        if let currentRent = currentRent, currentRent > 0 {
+        if let currentRent, currentRent > 0 {
             baseline = currentRent
-        }
-        // 2. If they don't rent, compare to the Max Budget in their preferences
-        else if let maxBudget = firebase.userPreferences?.budgetMax, maxBudget > 0 {
+        } else if let maxBudget = firebase.userPreferences?.budgetMax, maxBudget > 0 {
             baseline = maxBudget
-        }
-        // 3. Fallback if no data exists
-        else {
+        } else {
             return nil
         }
 
         let diff = listingPrice - baseline
 
-        if diff == 0 {
-            return "On Budget"
-        } else if diff > 0 {
-            return "+$\(Int(diff))"
-        } else {
-            return "-$\(Int(abs(diff)))"
-        }
+        if diff == 0 { return "On Budget" }
+        return diff > 0 ? "+$\(Int(diff))" : "-$\(Int(abs(diff)))"
     }
 
     private func setupCameraFallback() {
@@ -231,6 +252,10 @@ struct TenantDiscover: View {
 
 // MARK: - Supporting Types
 
+enum TenantTab {
+    case home
+    case discover
+}
 struct ListingSelection: Identifiable {
     let id: UUID
 }

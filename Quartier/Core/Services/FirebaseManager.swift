@@ -24,6 +24,7 @@ class FirebaseManager: ObservableObject {
     @Published var favoriteIds: Set<String> = []
     @Published var userPreferences: Preferences? = nil
     @Published var tenants: [TenantItem] = []
+    @Published var userDocuments: [UserDocument] = []
     
     // MARK: - State Management
     
@@ -48,20 +49,41 @@ class FirebaseManager: ObservableObject {
     
     // MARK: - User Management
     
-    func saveUser(uid: String, email: String, role: String, isRenting: Bool = false, apartmentId: String? = nil, completion: @escaping (Bool) -> Void) {
-        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let nameHint = email.split(separator: "@").first.map(String.init) ?? ""
+    func uploadProfileImage(uid: String, data: Data, completion: @escaping (String?) -> Void) {
+
+        let ref = storage.reference().child("users/\(uid)/profile.jpg")
+
+        ref.putData(data, metadata: nil) { _, error in
+            if let error = error {
+                print("Upload error:", error)
+                completion(nil)
+                return
+            }
+
+            ref.downloadURL { url, error in
+                if let error = error {
+                    print("Download URL error:", error)
+                    completion(nil)
+                    return
+                }
+                completion(url?.absoluteString)
+            }
+        }
+    }
+    
+    func saveUser(uid: String, name: String, profilePic: String, email: String, role: String, isRenting: Bool = false, apartmentId: String? = nil, completion: @escaping (Bool) -> Void) {
 
         let userData: [String: Any] = [
             "id": uid,
+            "name": name,
+            "profilePic": profilePic,
             "email": email,
-            "emailLowercase": normalizedEmail,
-            "displayName": nameHint,
             "role": role.lowercased(),
             "isRenting": isRenting,
             "apartmentId": apartmentId ?? "",
             "hasCompletedPreferences": false,
-            "createdAt": FieldValue.serverTimestamp()
+            "createdAt": FieldValue.serverTimestamp(),
+            "updatedAt": FieldValue.serverTimestamp()
         ]
         
         db.collection("users").document(uid).setData(userData) { error in
@@ -80,6 +102,8 @@ class FirebaseManager: ObservableObject {
             let user = User(
                 id: data["id"] as? String ?? uid,
                 email: data["email"] as? String ?? "",
+                name: data["name"] as? String ?? "",
+                profilePic: data["profilePic"] as? String ?? "",
                 role: roleString.lowercased() == "landlord" ? .landlord : .tenant,
                 createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date(),
                 isActive: data["isActive"] as? Bool ?? true,
@@ -120,6 +144,27 @@ class FirebaseManager: ObservableObject {
                 let price = snapshot?.data()?["price"] as? Double
                 completion(price)
             }
+        }
+    }
+    
+    
+    func updateUserProfile(
+        uid: String,
+        name: String,
+        profilePic: String?,
+        completion: @escaping (Bool) -> Void
+    ) {
+        var data: [String: Any] = [
+            "name": name,
+            "updatedAt": FieldValue.serverTimestamp()
+        ]
+        
+        if let profilePic = profilePic {
+            data["profilePic"] = profilePic
+        }
+        
+        db.collection("users").document(uid).updateData(data) { error in
+            completion(error == nil)
         }
     }
     
@@ -274,7 +319,34 @@ class FirebaseManager: ObservableObject {
         db.collection("listings").document(listingId).updateData(updatedData)
     }
     
-    // MARK: - Media & Documents
+    func listenToListing(listingId: String, completion: @escaping (Listing?) -> Void) -> ListenerRegistration {
+
+        return db.collection("listings")
+            .document(listingId)
+            .addSnapshotListener { snapshot, error in
+
+                guard let doc = snapshot, let data = doc.data() else {
+                    completion(nil)
+                    return
+                }
+
+                var listing = Listing(
+                    listingName: data["listingName"] as? String ?? "",
+                    landLordId: data["landLordId"] as? String ?? "",
+                    price: data["price"] as? Double ?? 0,
+                    bedrooms: data["bedrooms"] as? Int ?? 0,
+                    bathrooms: data["bathrooms"] as? Int ?? 0
+                )
+
+                listing.listingID = UUID(uuidString: doc.documentID) ?? UUID()
+                listing.address = data["address"] as? String ?? ""
+                listing.existingImageURLs = data["images"] as? [String] ?? []
+
+                DispatchQueue.main.async {
+                    completion(listing)
+                }
+            }
+    }
     
     func uploadListingImages(listingId: UUID, images: [UIImage], completion: @escaping ([String]) -> Void) {
         var urls: [String] = []
@@ -312,6 +384,10 @@ class FirebaseManager: ObservableObject {
             }
         }
     }
+    
+    
+    //MARK: Document CRUD shaquille
+    
     
     func uploadDocument(fileURL: URL, type: DocumentType) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
@@ -366,6 +442,44 @@ class FirebaseManager: ObservableObject {
                     }
                 }
         }
+    }
+    
+  var documentsListener: ListenerRegistration?
+
+    func startListeningToDocuments() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+
+        documentsListener?.remove()
+        documentsListener = db.collection("users")
+            .document(uid)
+            .collection("documents")
+            .addSnapshotListener { snapshot, error in
+
+                guard let documents = snapshot?.documents else {
+                    print("Listener error:", error?.localizedDescription ?? "")
+                    return
+                }
+
+                let fetched = documents.compactMap { doc -> UserDocument? in
+                    let data = doc.data()
+
+                    guard let type = data["type"] as? String,
+                          let url = data["url"] as? String,
+                          let status = data["status"] as? String else {
+                        return nil
+                    }
+
+                    return UserDocument(
+                        type: type,
+                        url: url,
+                        status: status
+                    )
+                }
+
+                DispatchQueue.main.async {
+                    self.userDocuments = fetched
+                }
+            }
     }
     
     // MARK: - Favorites

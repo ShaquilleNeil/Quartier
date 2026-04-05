@@ -6,11 +6,15 @@
 //
 
 import SwiftUI
+import _PhotosUI_SwiftUI
+import FirebaseAuth
 
 struct SignUp: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var selectedRole: UserType = .tenant
+    @State private var selectedImage: PhotosPickerItem?
+    @State private var imageData: Data?
     @State private var fullName = ""
     @State private var email = ""
     @State private var password = ""
@@ -50,6 +54,28 @@ struct SignUp: View {
                         
                         // Form Fields
                         VStack(spacing: 16) {
+                            
+                            PhotosPicker(selection: $selectedImage, matching: .images) {
+                                if let data = imageData, let uiImage = UIImage(data: data) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 120, height: 120)
+                                        .clipShape(Circle())
+                                } else {
+                                    Image(systemName: "person.crop.circle.fill")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 120, height: 120)
+                                        .foregroundColor(.gray)
+                                }
+                            }.onChange(of: selectedImage) { newValue in
+                                Task {
+                                    if let data = try? await newValue?.loadTransferable(type: Data.self) {
+                                        imageData = data
+                                    }
+                                }
+                            }
                             
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Full Name")
@@ -145,12 +171,29 @@ struct SignUp: View {
     }
     
     func handleSignUp() {
-        // call auth service
         authService.register(email: email, password: password, role: selectedRole.rawValue) { success in
-            if success {
-                print("signed up as \(selectedRole.rawValue)")
-            } else {
+            
+            guard success else {
                 print("sign up failed")
+                return
+            }
+            
+            guard let uid = Auth.auth().currentUser?.uid else {
+                print("UID missing")
+                return
+            }
+
+            authService.saveProfile(
+                uid: uid,
+                name: fullName,
+                imageData: imageData
+            ) { result in
+                switch result {
+                case .success:
+                    print("User fully created")
+                case .failure(let error):
+                    print("Profile setup failed:", error)
+                }
             }
         }
     }

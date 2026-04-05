@@ -20,7 +20,7 @@ class AuthService: ObservableObject {
 
     // MARK: - Dependencies
 
-    private let firebase: FirebaseManager
+ let firebase: FirebaseManager
     private let db = Firestore.firestore()
     private var userDocListener: ListenerRegistration?
     
@@ -63,7 +63,9 @@ class AuthService: ObservableObject {
     
     func register(email: String, password: String, role: String, completion: @escaping (Bool) -> Void) {
         Auth.auth().createUser(withEmail: email, password: password) { result, error in
-            if error != nil {
+            
+            if let error = error {
+                print("Register error:", error)
                 completion(false)
                 return
             }
@@ -73,10 +75,58 @@ class AuthService: ObservableObject {
                 return
             }
             
-            self.firebase.saveUser(uid: uid, email: email, role: role) { success in
+            let defaultName = email.components(separatedBy: "@").first ?? ""
+            
+            self.firebase.saveUser(
+                uid: uid,
+                name: defaultName,
+                profilePic: "",
+                email: email,
+                role: role
+            ) { success in
                 DispatchQueue.main.async {
                     completion(success)
                 }
+            }
+        }
+    }
+    
+    func saveProfile(
+        uid: String,
+        name: String,
+        imageData: Data?,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        
+        if let imageData = imageData {
+            firebase.uploadProfileImage(uid: uid, data: imageData) { url in
+                
+                guard let url = url else {
+                    completion(.failure(NSError(domain: "Upload failed", code: 0)))
+                    return
+                }
+
+                self.firebase.updateUserProfile(
+                    uid: uid,
+                    name: name,
+                    profilePic: url
+                ) { success in
+                    success
+                    ? completion(.success(()))
+                    : completion(.failure(NSError(domain: "Update failed", code: 0)))
+                }
+            }
+
+        } else {
+            
+            firebase.updateUserProfile(
+                uid: uid,
+                name: name,
+                profilePic: nil // won't overwrite
+            ) { success in
+                success
+                ? completion(.success(()))
+                : completion(.failure(NSError(domain: "Update failed", code: 0)))
             }
         }
     }
@@ -88,9 +138,10 @@ class AuthService: ObservableObject {
             guard let self else { return }
             guard let data = snapshot?.data() else {
                 if snapshot?.exists == false {
-                    DispatchQueue.main.async {
-                        self.applyUserDocument([:])
-                    }
+
+                    try? Auth.auth().signOut()
+                    self.resetState()
+                    return
                 }
                 return
             }
@@ -105,7 +156,7 @@ class AuthService: ObservableObject {
         hasCompletedPreferences = data["hasCompletedPreferences"] as? Bool ?? false
         isRenting = data["isRenting"] as? Bool ?? false
         
-        if let lid = data["rentedListingId"] as? String, !lid.isEmpty {
+        if let lid = data["apartmentId"] as? String, !lid.isEmpty {
             rentedListingId = lid
         } else {
             rentedListingId = nil

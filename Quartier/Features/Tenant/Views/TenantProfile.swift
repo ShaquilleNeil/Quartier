@@ -5,6 +5,7 @@
 import SwiftUI
 import FirebaseAuth
 import UniformTypeIdentifiers
+internal import FirebaseFirestoreInternal
 
 struct TenantProfile: View {
     
@@ -18,8 +19,8 @@ struct TenantProfile: View {
     @State private var showingPreferences = false
     @State private var showDocumentPicker = false
     @State private var selectedDocument: DocumentType?
-    @State private var uploadedDocs: [DocumentType: Bool] = [:]
     @State private var showOptions = false
+    @State private var profileEdit = false
 
     // MARK: - Main Body
     
@@ -27,14 +28,18 @@ struct TenantProfile: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
+                    
+                
 
                     // MARK: Profile Header
                     ProfileHeaderView(
-                        userEmail: authService.userSession?.email ?? "Tenant User"
+                        userEmail: authService.userSession?.email ?? "Tenant User",
+                        profileURL: firebaseManager.currentUser?.profilePic,
+                        name: firebaseManager.currentUser?.name ?? "User"
                     )
 
                     // MARK: Edit Button
-                    Button(action: {}) {
+                    Button(action: { profileEdit = true}) {
                         Text("Edit Profile")
                             .font(.headline)
                             .foregroundColor(.white)
@@ -42,6 +47,8 @@ struct TenantProfile: View {
                             .padding()
                             .background(Color.blue)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }.navigationDestination(isPresented: $profileEdit) {
+                        ProfileEditView()
                     }
 
                     // MARK: Search Preferences
@@ -50,28 +57,43 @@ struct TenantProfile: View {
                     }
 
                     // MARK: Documents
-                    DocumentsSection(uploadedDocs: uploadedDocs) { type in
+                    DocumentsSection(isUploaded: isUploaded) { type in
                         selectedDocument = type
-                        if uploadedDocs[type] == true {
+                        
+                        if isUploaded(type) {
                             showOptions = true
                         } else {
                             showDocumentPicker = true
                         }
                     }
                     
-                    // MARK: Account Settings
-                    AccountSettingsSection(onLogout: {
+                    Button("Log Out") {
                         authService.signOut()
-                    })
+                    }
+                    .foregroundColor(.white)
+                    .fontWeight(.bold)
+                    .background{
+                        RoundedRectangle(cornerRadius: 10)
+                            .foregroundStyle(.red)
+                            .frame(width: 300, height: 50)
+                    }
+                    .padding(.top, 8)
                 }
                 .padding()
+            }
+            .onAppear {
+                firebaseManager.startListeningToDocuments()
+                
+                if let uid = authService.userSession?.uid {
+                    firebaseManager.fetchUser(uid: uid) { _ in }
+                }
+            }
+            .onDisappear {
+                firebaseManager.documentsListener?.remove()
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
-            
-            // MARK: - Modifiers & Sheets
-            
             .sheet(isPresented: $showingPreferences) {
                 TenantPreferencesView()
             }
@@ -88,9 +110,6 @@ struct TenantProfile: View {
                     print("Selected:", fileURL)
                     firebaseManager.uploadDocument(fileURL: fileURL, type: type)
 
-                    // Update local UI immediately
-                    uploadedDocs[type] = true
-
                 case .failure(let error):
                     print("Error:", error)
                 }
@@ -105,11 +124,14 @@ struct TenantProfile: View {
                 Button("Delete", role: .destructive) {
                     guard let type = selectedDocument else { return }
                     firebaseManager.deleteDocument(type: type)
-                    
-                    // Update local UI immediately
-                    uploadedDocs[type] = false
                 }
             }
+        }
+    }
+    
+    private func isUploaded(_ type: DocumentType) -> Bool {
+        firebaseManager.userDocuments.contains {
+            $0.type == type.rawValue
         }
     }
 }
@@ -118,21 +140,44 @@ struct TenantProfile: View {
 
 private struct ProfileHeaderView: View {
     let userEmail: String
+    let profileURL: String?
+    let name: String
 
     var body: some View {
         VStack(spacing: 12) {
-            ZStack(alignment: .bottomTrailing) {
-                Circle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 120, height: 120)
-                    .overlay(
-                        Image(systemName: "person.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .padding(30)
-                            .foregroundColor(.gray)
-                    )
 
+            ZStack(alignment: .bottomTrailing) {
+
+                // ✅ PROFILE IMAGE LOGIC
+                if let urlString = profileURL,
+                   let url = URL(string: urlString),
+                   !urlString.isEmpty {
+
+                    AsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } placeholder: {
+                        ProgressView()
+                    }
+                    .frame(width: 120, height: 120)
+                    .clipShape(Circle())
+
+                } else {
+                    // fallback
+                    Circle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 120, height: 120)
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .resizable()
+                                .scaledToFit()
+                                .padding(30)
+                                .foregroundColor(.gray)
+                        )
+                }
+
+                // verification badge
                 Circle()
                     .fill(Color.blue)
                     .frame(width: 32, height: 32)
@@ -143,8 +188,13 @@ private struct ProfileHeaderView: View {
                     )
             }
 
-            Text(userEmail)
+            // ✅ USE REAL NAME
+            Text(name)
                 .font(.title3.bold())
+
+            Text(userEmail)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
 
             Text("Verified Tenant • Member since 2026")
                 .font(.subheadline)
@@ -218,19 +268,15 @@ private struct SearchPreferencesCard: View {
 // MARK: - Documents Section
 
 private struct DocumentsSection: View {
-    let uploadedDocs: [DocumentType: Bool]
+    let isUploaded: (DocumentType) -> Bool
     let onSelect: (DocumentType) -> Void
 
     private func status(for type: DocumentType) -> DocumentStatus {
-        if uploadedDocs[type] == true {
-            return .pending
-        } else {
-            return .none
-        }
+        isUploaded(type) ? .pending : .none
     }
 
     private var completedCount: Int {
-        uploadedDocs.values.filter { $0 }.count
+        DocumentType.allCases.filter { isUploaded($0) }.count
     }
 
     var body: some View {
@@ -315,25 +361,6 @@ private struct DocumentRow: View {
     }
 }
 
-// MARK: - Account Settings Section
-
-private struct AccountSettingsSection: View {
-    var onLogout: () -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Account Settings").font(.headline)
-            SettingsRow(title: "Notifications", icon: "bell.fill")
-            SettingsRow(title: "Privacy & Security", icon: "lock.fill")
-            
-            Button("Log Out") {
-                onLogout()
-            }
-            .foregroundColor(.red)
-            .padding(.top, 8)
-        }
-    }
-}
 
 private struct SettingsRow: View {
     let title: String
@@ -385,4 +412,31 @@ extension DocumentStatus {
             return "checkmark"
         }
     }
+}
+
+private struct PreviewContainer: View {
+    
+    @StateObject private var firebase = FirebaseManager()
+    @StateObject private var auth = AuthService(firebase: FirebaseManager())
+
+    init() {
+        let fb = FirebaseManager()
+        
+        fb.userDocuments = [
+            UserDocument(type: "id", url: "", status: "pending"),
+            UserDocument(type: "paystub", url: "", status: "pending")
+        ]
+        
+        _firebase = StateObject(wrappedValue: fb)
+        _auth = StateObject(wrappedValue: AuthService(firebase: fb))
+    }
+
+    var body: some View {
+        TenantProfile()
+            .environmentObject(firebase)
+            .environmentObject(auth)
+    }
+}
+#Preview {
+    PreviewContainer()
 }

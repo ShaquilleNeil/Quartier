@@ -11,6 +11,8 @@ import Combine
 struct User: Identifiable, Equatable {
     let id: String              // Firebase UID
     let email: String
+    let name: String
+    let profilePic: String?
     let role: UserType
     let createdAt: Date
     let isActive: Bool

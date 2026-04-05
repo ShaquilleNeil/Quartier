@@ -8,7 +8,7 @@
 import SwiftUI
 
 
-enum DocumentType: String, Codable {
+enum DocumentType: String, Codable, CaseIterable {
     case id
     case paystub
     case tax
