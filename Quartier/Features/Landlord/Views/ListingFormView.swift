@@ -46,7 +46,8 @@ struct ListingFormView: View {
                 landLordId: "",
                 price: 0,
                 bedrooms: 0,
-                bathrooms: 0
+                bathrooms: 0,
+                address: ""
             ))
             isEditing = false
         }

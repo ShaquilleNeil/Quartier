@@ -6,6 +6,7 @@ import SwiftUI
 import FirebaseAuth
 import UniformTypeIdentifiers
 internal import FirebaseFirestoreInternal
+import SDWebImageSwiftUI
 
 struct TenantProfile: View {
     
@@ -138,7 +139,7 @@ struct TenantProfile: View {
 
 // MARK: - Profile Header Components
 
-private struct ProfileHeaderView: View {
+struct ProfileHeaderView: View {
     let userEmail: String
     let profileURL: String?
     let name: String
@@ -148,12 +149,11 @@ private struct ProfileHeaderView: View {
 
             ZStack(alignment: .bottomTrailing) {
 
-                // ✅ PROFILE IMAGE LOGIC
                 if let urlString = profileURL,
                    let url = URL(string: urlString),
                    !urlString.isEmpty {
 
-                    AsyncImage(url: url) { image in
+                    WebImage(url: url) { image in
                         image
                             .resizable()
                             .scaledToFill()
@@ -188,7 +188,7 @@ private struct ProfileHeaderView: View {
                     )
             }
 
-            // ✅ USE REAL NAME
+           
             Text(name)
                 .font(.title3.bold())
 

@@ -10,6 +10,7 @@ import MapKit
 import CoreData
 import FirebaseAuth
 import FirebaseFirestore
+import SDWebImageSwiftUI
 
 struct ApartmentDetailView: View {
 
@@ -23,25 +24,17 @@ struct ApartmentDetailView: View {
 
     var body: some View {
 
-        ZStack(alignment: .top) {
+        ScrollView {
+               VStack(spacing: 0) {
 
-            headerImage
+                   headerImage
+                       .frame(height: UIScreen.main.bounds.height * 0.35)
 
-            ScrollView {
-
-                VStack(spacing: 0) {
-
-                    Spacer()
-                        .frame(height: 235)
-
-                    contentCard
-                        .padding()
-
-                }.padding()
-            }
-        }
-        .padding()
-        .sheet(isPresented: $showChat, onDismiss: {
+                   contentCard
+               }
+           }
+           .ignoresSafeArea(edges: .top)
+           .sheet(isPresented: $showChat, onDismiss: {
             activeConversation = nil
         }) {
             if let conv = activeConversation {
@@ -95,6 +88,9 @@ struct ApartmentDetailView: View {
 
         VStack(alignment: .leading, spacing: 10) {
 
+            Text(listing.listingName)
+                .font(.headline)
+                .foregroundStyle(.black)
             Text("$\(listing.price.formatted(.number.precision(.fractionLength(2))))/mo")
                 .font(.title.bold())
 
@@ -187,35 +183,41 @@ struct ApartmentDetailView: View {
         }
         .padding()
         .background(Color(UIColor.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 34))
-        .offset(y: -30)
     }
 
     private var headerImage: some View {
-        Group {
-            if let firstImage = listing.existingImageURLs.first,
-               let url = URL(string: firstImage) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                    case .failure(_):
-                        Image(systemName: "house.fill").resizable().scaledToFit().padding()
-                    case .empty:
-                        ProgressView()
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
+        TabView {
+            if listing.existingImageURLs.isEmpty {
+                placeholderImage
             } else {
-                Image(systemName: "house.fill").resizable().scaledToFit().padding()
+                ForEach(listing.existingImageURLs, id: \.self) { imageURL in
+                    WebImage(url: URL(string: imageURL))
+                        .resizable()
+                        .indicator(.activity)
+                        .transition(.fade(duration: 0.25))
+                        .scaledToFill()
+                        .frame(
+                            width: UIScreen.main.bounds.width,
+                            height: UIScreen.main.bounds.height * 0.35
+                        )
+                        .clipped()
+                }
             }
         }
-        .frame(height: 320)
-        .frame(maxWidth: .infinity)
-        .background(Color.gray.opacity(0.1))
+        .tabViewStyle(.page(indexDisplayMode: .automatic))
+        .frame(height: UIScreen.main.bounds.height * 0.35)
         .clipped()
         .ignoresSafeArea(edges: .top)
+        .onAppear {
+            print("Images count:", listing.existingImageURLs.count)
+        }
+    }
+    
+    private var placeholderImage: some View {
+        Image(systemName: "house.fill")
+            .resizable()
+            .scaledToFit()
+            .padding()
     }
 
     private func contactLandlord() {
@@ -325,4 +327,41 @@ struct MapCard: View {
         .frame(height: 140)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
+}
+
+
+extension Listing {
+    static var mock: Listing {
+        var listing = Listing(
+            listingID: UUID(),
+            listingName: "Luxury Downtown Apartment",
+            landLordId: "test",
+            price: 1850,
+            bedrooms: 2,
+            bathrooms: 1,
+            address: "10490 avenue curotte"
+        )
+
+        listing.address = "123 Saint-Catherine St, Montreal"
+        listing.squareFeet = 850
+        listing.amenities = ["WiFi", "Parking", "Air Conditioning"]
+        listing.rules = "No smoking. Pets allowed."
+        listing.existingImageURLs = [ "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688",
+                                      "https://images.unsplash.com/photo-1493809842364-78817add7ffb",
+                                      "https://images.unsplash.com/photo-1484154218962-a197022b5858"] // or put a real URL
+
+        listing.latitude = 45.5017
+        listing.longitude = -73.5673
+
+        return listing
+    }
+}
+
+#Preview {
+    let context = PersistenceController.preview.container.viewContext
+    let firebase = FirebaseManager()
+
+    return ApartmentDetailView(listing: .mock)
+        .environmentObject(firebase)
+        .environment(\.managedObjectContext, context)
 }

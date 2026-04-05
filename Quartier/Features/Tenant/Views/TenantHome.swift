@@ -94,6 +94,7 @@ struct TenantHome: View {
                 coreDataManager.loadPreferences(context)
             }
             .padding()
+            .background(Color(.systemGroupedBackground))
             .sheet(isPresented: $showingPreferences) {
                 TenantPreferencesView()
             }
@@ -148,3 +149,5 @@ struct SearchBar: View {
         }
     }
 }
+
+

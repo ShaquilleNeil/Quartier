@@ -196,7 +196,8 @@ private struct MyListingsView: View {
             landLordId: draft.landLordID ?? "",
             price: draft.price,
             bedrooms: Int(draft.bedrooms),
-            bathrooms: Int(draft.bathrooms)
+            bathrooms: Int(draft.bathrooms),
+            address: draft.address ?? ""
         )
 
         listing.amenities = decodedAmenities

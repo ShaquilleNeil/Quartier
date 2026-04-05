@@ -39,7 +39,8 @@ struct Listing: Identifiable, Codable {
         landLordId: String,
         price: Double,
         bedrooms: Int,
-        bathrooms: Int
+        bathrooms: Int,
+        address: String
     ) {
         self.listingID = listingID
         self.listingName = listingName
@@ -47,6 +48,7 @@ struct Listing: Identifiable, Codable {
         self.price = price
         self.bedrooms = bedrooms
         self.bathrooms = bathrooms
+        self.address = address
     }
 
     enum CodingKeys: String, CodingKey {

@@ -210,7 +210,8 @@ class FirebaseManager: ObservableObject {
                 landLordId: data["landLordId"] as? String ?? "",
                 price: data["price"] as? Double ?? 0,
                 bedrooms: data["bedrooms"] as? Int ?? 0,
-                bathrooms: data["bathrooms"] as? Int ?? 0
+                bathrooms: data["bathrooms"] as? Int ?? 0,
+                address: data["address"] as? String ?? ""
             )
             
             listing.listingID = UUID(uuidString: doc.documentID) ?? UUID()
@@ -335,7 +336,8 @@ class FirebaseManager: ObservableObject {
                     landLordId: data["landLordId"] as? String ?? "",
                     price: data["price"] as? Double ?? 0,
                     bedrooms: data["bedrooms"] as? Int ?? 0,
-                    bathrooms: data["bathrooms"] as? Int ?? 0
+                    bathrooms: data["bathrooms"] as? Int ?? 0,
+                    address: data["address"] as? String ?? ""
                 )
 
                 listing.listingID = UUID(uuidString: doc.documentID) ?? UUID()

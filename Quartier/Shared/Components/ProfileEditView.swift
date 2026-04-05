@@ -8,6 +8,7 @@
 import SwiftUI
 import PhotosUI
 import FirebaseAuth
+import SDWebImageSwiftUI
 
 struct ProfileEditView: View {
     
@@ -200,7 +201,7 @@ struct ProfileEditView: View {
         } else if let urlString = firebaseManager.currentUser?.profilePic,
                   let url = URL(string: urlString),
                   !urlString.isEmpty {
-            AsyncImage(url: url) { image in
+            WebImage(url: url) { image in
                 image
                     .resizable()
                     .scaledToFill()
