@@ -2,30 +2,10 @@
 //  NewScheduleEventView.swift
 //  Quartier
 //
-//  Landlord: create schedule event for all, or selected apartments. Visible to tenants when relevant.
-//
-
+// MARK: - NewScheduleEventView.swift
 import SwiftUI
 import CoreData
-
-private final class ScheduleSaveGate {
-    private static let lock = NSLock()
-    private static var busy = false
-
-    static func tryEnter() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !busy else { return false }
-        busy = true
-        return true
-    }
-
-    static func leave() {
-        lock.lock()
-        busy = false
-        lock.unlock()
-    }
-}
+import FirebaseAuth
 
 struct NewScheduleEventView: View {
     @Environment(\.managedObjectContext) private var viewContext
@@ -35,28 +15,29 @@ struct NewScheduleEventView: View {
         sortDescriptors: [NSSortDescriptor(keyPath: \LDListing.address, ascending: true)],
         animation: .default
     )
-    private var allListings: FetchedResults<LDListing>
+    private var allCoreDataListings: FetchedResults<LDListing>
 
+    @StateObject private var viewModel = ScheduleViewModel()
+    
     @State private var title = ""
     @State private var notes = ""
     @State private var startAt = Date()
     @State private var endAt = Date().addingTimeInterval(3600)
     @State private var allDay = false
     @State private var scopeAll = true
-    @State private var selectedListingIDs: Set<UUID> = []
+    @State private var selectedListingIDs: Set<String> = []
     @State private var errorMessage: String?
-    @State private var isSaving = false
-    @State private var didCompleteSave = false
-    @State private var didLoadExisting = false
 
-    let existingEvent: LDScheduleEvent?
+    let existingEvent: ScheduleEvent?
     let onSaved: (() -> Void)?
 
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
-
-    init(existingEvent: LDScheduleEvent? = nil, onSaved: (() -> Void)? = nil) {
-        self.existingEvent = existingEvent
-        self.onSaved = onSaved
+    
+    // MARK: - Security Filtering
+    private var currentUid: String { Auth.auth().currentUser?.uid ?? "" }
+    
+    private var myListings: [LDListing] {
+        allCoreDataListings.filter { $0.landLordID == currentUid }
     }
 
     var body: some View {
@@ -67,9 +48,9 @@ struct NewScheduleEventView: View {
                     TextField("Notes (optional)", text: $notes, axis: .vertical)
                         .lineLimit(2...4)
                     Toggle("All day", isOn: $allDay)
+                    
                     if allDay {
                         DatePicker("Date", selection: $startAt, displayedComponents: .date)
-                        // end same day for all-day
                     } else {
                         DatePicker("Start", selection: $startAt, displayedComponents: [.date, .hourAndMinute])
                         DatePicker("End", selection: $endAt, displayedComponents: [.date, .hourAndMinute])
@@ -78,14 +59,15 @@ struct NewScheduleEventView: View {
 
                 Section("Visible to") {
                     Picker("Scope", selection: $scopeAll) {
-                        Text("All apartments").tag(true)
-                        Text("Selected apartments").tag(false)
+                        Text("All my properties").tag(true)
+                        Text("Specific properties").tag(false)
                     }
                     .pickerStyle(.inline)
 
                     if !scopeAll {
-                        ForEach(allListings, id: \.objectID) { listing in
-                            if let id = listing.id {
+                        // MARK: Only shows user's listings
+                        ForEach(myListings, id: \.objectID) { listing in
+                            if let id = listing.id?.uuidString {
                                 Button {
                                     if selectedListingIDs.contains(id) {
                                         selectedListingIDs.remove(id)
@@ -110,7 +92,8 @@ struct NewScheduleEventView: View {
                                 }
                             }
                         }
-                        if allListings.isEmpty {
+                        
+                        if myListings.isEmpty {
                             Text("No listings yet. Add listings in the Listings tab.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -134,7 +117,7 @@ struct NewScheduleEventView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(existingEvent == nil ? "Save" : "Update") { saveEvent() }
-                        .disabled(isSaving || didCompleteSave || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
             .onChange(of: scopeAll) { _, isAll in
@@ -152,29 +135,18 @@ struct NewScheduleEventView: View {
     }
 
     private func loadExistingIfNeeded() {
-        guard !didLoadExisting, let existingEvent else { return }
-        didLoadExisting = true
-
-        title = existingEvent.title ?? ""
-        notes = existingEvent.notes ?? ""
-        startAt = existingEvent.startAt ?? Date()
-        endAt = existingEvent.endAt ?? startAt.addingTimeInterval(3600)
-        allDay = existingEvent.allDay
-
-        let targets = existingEvent.targets as? Set<LDScheduleTarget> ?? []
-        let hasAll = targets.contains(where: { ($0.scopeType ?? "") == LDScopeType.all.rawValue || $0.listing == nil })
-        scopeAll = hasAll
-        if !hasAll {
-            selectedListingIDs = Set(targets.compactMap { $0.listing?.id })
-        }
+        guard let event = existingEvent else { return }
+        title = event.title
+        notes = event.notes ?? ""
+        startAt = event.startAt
+        endAt = event.endAt
+        allDay = event.allDay
+        scopeAll = event.scopeAll
+        selectedListingIDs = Set(event.listingIds)
     }
 
     private func saveEvent() {
-        guard !isSaving, !didCompleteSave else { return }
-        guard ScheduleSaveGate.tryEnter() else { return }
         errorMessage = nil
-        isSaving = true
-        defer { ScheduleSaveGate.leave() }
 
         var eventStart = startAt
         var eventEnd = endAt
@@ -182,78 +154,29 @@ struct NewScheduleEventView: View {
             eventStart = Calendar.current.startOfDay(for: startAt)
             eventEnd = eventStart.addingTimeInterval(86400 - 1)
         }
+        
         if eventEnd <= eventStart {
             errorMessage = "End must be after start."
-            isSaving = false
-            didCompleteSave = false
             return
         }
 
-        let scope: ScheduleEventService.ScheduleScope
-        if scopeAll {
-            scope = .all
-        } else {
-            let selected = allListings.filter { listing in
-                guard let id = listing.id else { return false }
-                return selectedListingIDs.contains(id)
-            }
-            if selected.isEmpty {
-                errorMessage = "Select at least one apartment, or use All apartments."
-                isSaving = false
-                didCompleteSave = false
-                return
-            }
-            scope = .listings(Array(selected))
+        if !scopeAll && selectedListingIDs.isEmpty {
+            errorMessage = "Select at least one property, or choose 'All my properties'."
+            return
         }
 
-        let service = ScheduleEventService(context: viewContext)
-        let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedNotes = notes.isEmpty ? nil : notes
-        func attemptSave(_ scopeToUse: ScheduleEventService.ScheduleScope) throws {
-            if let existingEvent {
-                _ = try service.updateScheduleEvent(
-                    existingEvent,
-                    title: normalizedTitle,
-                    notes: normalizedNotes,
-                    startAt: eventStart,
-                    endAt: eventEnd,
-                    allDay: allDay,
-                    visibility: 1,
-                    tenantRelevant: true,
-                    scope: scopeToUse
-                )
-            } else {
-                _ = try service.createScheduleEvent(
-                    title: normalizedTitle,
-                    notes: normalizedNotes,
-                    startAt: eventStart,
-                    endAt: eventEnd,
-                    allDay: allDay,
-                    visibility: 1,
-                    tenantRelevant: true,
-                    scope: scopeToUse,
-                    pushToConversations: true
-                )
-            }
-        }
+        viewModel.saveEvent(
+            id: existingEvent?.id,
+            title: title,
+            notes: notes,
+            startAt: eventStart,
+            endAt: eventEnd,
+            allDay: allDay,
+            scopeAll: scopeAll,
+            listingIds: Array(selectedListingIDs)
+        )
 
-        do {
-            try attemptSave(scope)
-            isSaving = false
-            didCompleteSave = true
-            DispatchQueue.main.async {
-                onSaved?()
-                dismiss()
-            }
-        } catch {
-            isSaving = false
-            didCompleteSave = false
-            errorMessage = error.localizedDescription
-        }
+        onSaved?()
+        dismiss()
     }
-}
-
-#Preview {
-    NewScheduleEventView()
-        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }

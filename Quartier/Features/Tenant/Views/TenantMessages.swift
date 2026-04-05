@@ -123,32 +123,26 @@ struct TenantChatView: View {
         VStack(spacing: 0) {
             Divider().opacity(0.2)
             HStack(alignment: .bottom, spacing: 10) {
-                ZStack(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(Color(uiColor: .secondarySystemBackground))
-                    TextEditor(text: $messageText)
-                        .font(.system(size: 14))
-                        .scrollContentBackground(.hidden)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .frame(minHeight: 40, maxHeight: 120)
-                    if messageText.isEmpty {
-                        Text("Type a message...")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.secondary.opacity(0.7))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 14)
-                    }
-                }
+                
+                TextField("Type a message...", text: $messageText, axis: .vertical)
+                    .font(.system(size: 14))
+                    .lineLimit(1...5)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18)
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                    )
+
                 Button {
                     if let id = conversation.id {
                         viewModel.sendMessage(
                             conversationId: id,
                             listingId: conversation.listingId,
                             listingAddress: conversation.listingAddress,
-                            tenantId: conversation.tenantId,
+                            tenantId: currentUid,
                             landlordId: conversation.landlordId,
-                            tenantName: conversation.tenantName,
+                            tenantName: "Tenant",
                             text: messageText
                         )
                         messageText = ""
@@ -161,6 +155,7 @@ struct TenantChatView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .padding(.bottom, 2)
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)

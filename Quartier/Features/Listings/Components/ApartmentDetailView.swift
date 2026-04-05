@@ -17,7 +17,6 @@ struct ApartmentDetailView: View {
     let listing: Listing
     @State private var isExpanded = false
     @State private var activeConversation: LDConversation?
-    @State private var showChat = false
     @State private var chatError: String?
     @Environment(\.managedObjectContext) private var viewContext
     @EnvironmentObject private var firebase: FirebaseManager
@@ -34,17 +33,14 @@ struct ApartmentDetailView: View {
                }
            }
            .ignoresSafeArea(edges: .top)
-           .sheet(isPresented: $showChat, onDismiss: {
-            activeConversation = nil
-        }) {
-            if let conv = activeConversation {
+           .sheet(item: $activeConversation) { conv in
                 let firebaseConv = Conversation(
                     id: conv.id?.uuidString ?? UUID().uuidString,
                     listingId: listing.listingID.uuidString,
                     listingAddress: listing.address,
                     tenantId: conv.tenant?.id?.uuidString ?? "",
                     landlordId: listing.landLordId,
-                    tenantName: "Me",
+                    tenantName: "Tenant",
                     lastMessageText: conv.lastMessageText ?? "",
                     lastMessageAt: conv.lastMessageAt ?? Date()
                 )
@@ -54,7 +50,6 @@ struct ApartmentDetailView: View {
                         .environment(\.managedObjectContext, viewContext)
                 }
             }
-        }
         .alert("Message", isPresented: Binding(
             get: { chatError != nil },
             set: { _ in chatError = nil }
@@ -159,7 +154,6 @@ struct ApartmentDetailView: View {
             Text("Location")
                 .font(.subheadline.bold())
 
-            // FIXED: MapCard is now defined below
             MapCard(
                 coordinate: apartmentCoordinate,
                 locationName: listing.address
@@ -221,14 +215,12 @@ struct ApartmentDetailView: View {
     }
 
     private func contactLandlord() {
-        do {
-            let conv = try openOrCreateConversation()
-            activeConversation = conv
-            showChat = true
-        } catch {
-            chatError = error.localizedDescription
+            do {
+                activeConversation = try openOrCreateConversation()
+            } catch {
+                chatError = error.localizedDescription
+            }
         }
-    }
 
     private func openOrCreateConversation() throws -> LDConversation {
         let email = (firebase.currentUser?.email ?? Auth.auth().currentUser?.email ?? "")
@@ -297,7 +289,6 @@ struct ApartmentDetailView: View {
     }
 }
 
-// FIXED: Re-added MapCard so it is no longer "out of scope"
 struct MapCard: View {
     let coordinate: CLLocationCoordinate2D
     let locationName: String

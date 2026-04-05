@@ -4,9 +4,10 @@
 //
 //  Landlord: send notice to all, or to selected apartments.
 //
-
+// MARK: - NewNoticeView.swift
 import SwiftUI
 import CoreData
+import FirebaseAuth
 
 struct NewNoticeView: View {
     @Environment(\.managedObjectContext) private var viewContext
@@ -16,16 +17,25 @@ struct NewNoticeView: View {
         sortDescriptors: [NSSortDescriptor(keyPath: \LDListing.address, ascending: true)],
         animation: .default
     )
-    private var allListings: FetchedResults<LDListing>
+    private var allCoreDataListings: FetchedResults<LDListing>
+
+    @StateObject private var viewModel = NoticeViewModel()
 
     @State private var title = ""
     @State private var bodyText = ""
     @State private var scopeAll = true
-    @State private var selectedListingIDs: Set<UUID> = []
+    @State private var selectedListingIDs: Set<String> = []
     @State private var errorMessage: String?
     @State private var isSending = false
 
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
+
+    // MARK: - Security Filtering
+    private var currentUid: String { Auth.auth().currentUser?.uid ?? "" }
+    
+    private var myListings: [LDListing] {
+        allCoreDataListings.filter { $0.landLordID == currentUid }
+    }
 
     var body: some View {
         NavigationStack {
@@ -38,33 +48,35 @@ struct NewNoticeView: View {
 
                 Section("Send to") {
                     Picker("Scope", selection: $scopeAll) {
-                        Text("All apartments").tag(true)
-                        Text("Selected apartments").tag(false)
+                        Text("All my properties").tag(true)
+                        Text("Specific properties").tag(false)
                     }
                     .pickerStyle(.inline)
 
                     if !scopeAll {
-                        ForEach(allListings, id: \.objectID) { listing in
-                            let id = listing.id ?? UUID()
-                            Button {
-                                if selectedListingIDs.contains(id) {
-                                    selectedListingIDs.remove(id)
-                                } else {
-                                    selectedListingIDs.insert(id)
-                                }
-                            } label: {
-                                HStack {
-                                    Text(listing.address ?? "Untitled")
-                                        .foregroundStyle(.primary)
-                                    Spacer()
+                        ForEach(myListings, id: \.objectID) { listing in
+                            if let id = listing.id?.uuidString {
+                                Button {
                                     if selectedListingIDs.contains(id) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(primary)
+                                        selectedListingIDs.remove(id)
+                                    } else {
+                                        selectedListingIDs.insert(id)
+                                    }
+                                } label: {
+                                    HStack {
+                                        Text(listing.address ?? "Untitled")
+                                            .foregroundStyle(.primary)
+                                        Spacer()
+                                        if selectedListingIDs.contains(id) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundStyle(primary)
+                                        }
                                     }
                                 }
                             }
                         }
-                        if allListings.isEmpty {
+                        
+                        if myListings.isEmpty {
                             Text("No listings yet. Add listings in the Listings tab.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -102,37 +114,18 @@ struct NewNoticeView: View {
         isSending = true
         defer { isSending = false }
 
-        let scope: NoticeService.NoticeScope
-        if scopeAll {
-            scope = .all
-        } else {
-            let selected = allListings.filter { listing in
-                guard let id = listing.id else { return false }
-                return selectedListingIDs.contains(id)
-            }
-            if selected.isEmpty {
-                errorMessage = "Select at least one apartment, or use All apartments."
-                return
-            }
-            scope = .listings(Array(selected))
+        if !scopeAll && selectedListingIDs.isEmpty {
+            errorMessage = "Select at least one property, or use 'All my properties'."
+            return
         }
 
-        do {
-            let service = NoticeService(context: viewContext)
-            _ = try service.createNotice(
-                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                body: bodyText.trimmingCharacters(in: .whitespacesAndNewlines),
-                scope: scope,
-                pushToConversations: true
-            )
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        viewModel.sendNotice(
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            body: bodyText.trimmingCharacters(in: .whitespacesAndNewlines),
+            scopeAll: scopeAll,
+            listingIds: Array(selectedListingIDs)
+        )
+        
+        dismiss()
     }
-}
-
-#Preview {
-    NewNoticeView()
-        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }

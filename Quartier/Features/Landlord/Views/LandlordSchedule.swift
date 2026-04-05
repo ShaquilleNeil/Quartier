@@ -2,38 +2,33 @@
 //  LandlordSchedule.swift
 //  Quartier
 //
-//  Created by Shaquille O Neil on 2026-01-29.
-//
 
 import SwiftUI
 import CoreData
 
 struct LandlordSchedule: View {
     @Environment(\.managedObjectContext) private var viewContext
-
-    private struct EditSheetItem: Identifiable {
-        let objectID: NSManagedObjectID
-        var id: String { objectID.uriRepresentation().absoluteString }
-    }
+    
+    @StateObject private var viewModel = ScheduleViewModel()
 
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \LDScheduleEvent.startAt, ascending: true)],
+        sortDescriptors: [],
         animation: .default
     )
-    private var allEvents: FetchedResults<LDScheduleEvent>
+    private var allCoreDataListings: FetchedResults<LDListing>
 
     @State private var selectedDate: Date = Date()
     @State private var showNewEvent = false
-    @State private var editingSheet: EditSheetItem?
+    @State private var editingEvent: ScheduleEvent?
+    
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
 
-    private var eventsOnSelectedDay: [LDScheduleEvent] {
+    private var eventsOnSelectedDay: [ScheduleEvent] {
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: selectedDate)
         let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
-        return allEvents.filter { event in
-            guard let s = event.startAt else { return false }
-            return s >= start && s < end
+        return viewModel.events.filter { event in
+            return event.startAt >= start && event.startAt < end
         }
     }
 
@@ -75,15 +70,16 @@ struct LandlordSchedule: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 12)
                         } else {
-                            ForEach(eventsOnSelectedDay, id: \.objectID) { event in
+                            ForEach(eventsOnSelectedDay) { event in
                                 scheduleRow(
-                                    title: event.title ?? "Event",
-                                    subtitle: formatEventTime(event)
+                                    title: event.title,
+                                    address: getAddress(for: event),
+                                    time: formatEventTime(event)
                                 )
                                 .overlay(alignment: .trailing) {
                                     HStack(spacing: 10) {
                                         Button {
-                                            editingSheet = EditSheetItem(objectID: event.objectID)
+                                            editingEvent = event
                                         } label: {
                                             Image(systemName: "pencil")
                                                 .foregroundStyle(primary)
@@ -91,9 +87,10 @@ struct LandlordSchedule: View {
                                         .buttonStyle(.plain)
 
                                         Button(role: .destructive) {
-                                            deleteEvent(event)
+                                            viewModel.deleteEvent(event)
                                         } label: {
                                             Image(systemName: "trash")
+                                                .foregroundStyle(.red)
                                         }
                                         .buttonStyle(.plain)
                                     }
@@ -125,42 +122,51 @@ struct LandlordSchedule: View {
             .padding(.trailing, 18)
             .padding(.bottom, 18)
         }
+        // MARK: - Added Missing Triggers
+        .onAppear {
+            viewModel.loadEvents()
+        }
+        .onDisappear {
+            viewModel.cleanup()
+        }
         .sheet(isPresented: $showNewEvent) {
-            NewScheduleEventView(onSaved: {
+            NewScheduleEventView(existingEvent: nil) {
                 showNewEvent = false
-            })
+            }
             .environment(\.managedObjectContext, viewContext)
         }
-        .sheet(item: $editingSheet) { sheet in
-            if let event = try? viewContext.existingObject(with: sheet.objectID) as? LDScheduleEvent {
-                NewScheduleEventView(existingEvent: event, onSaved: {
-                    editingSheet = nil
-                })
-                .environment(\.managedObjectContext, viewContext)
-            } else {
-                Color.clear
-                    .onAppear {
-                        editingSheet = nil
-                    }
+        .sheet(item: $editingEvent) { event in
+            NewScheduleEventView(existingEvent: event) {
+                editingEvent = nil
             }
+            .environment(\.managedObjectContext, viewContext)
         }
     }
 
-    private func formatEventTime(_ event: LDScheduleEvent) -> String {
-        guard let start = event.startAt else { return "" }
-        if event.allDay {
-            return "All day"
+    private func getAddress(for event: ScheduleEvent) -> String {
+        if event.scopeAll { return "All Properties" }
+        if event.listingIds.isEmpty { return "No linked property" }
+        
+        let matchedListings = allCoreDataListings.filter { listing in
+            guard let id = listing.id?.uuidString else { return false }
+            return event.listingIds.contains(id)
         }
+        
+        if matchedListings.isEmpty { return "Multiple Properties" }
+        if matchedListings.count == 1 { return matchedListings.first?.address ?? "Unknown Address" }
+        return "\(matchedListings.first?.address ?? "Multiple") + \(matchedListings.count - 1) more"
+    }
+
+    private func formatEventTime(_ event: ScheduleEvent) -> String {
         let formatter = DateFormatter()
+        if event.allDay { return "All day" }
         formatter.timeStyle = .short
-        var text = formatter.string(from: start)
-        if let end = event.endAt {
-            text += " – \(formatter.string(from: end))"
-        }
+        var text = formatter.string(from: event.startAt)
+        text += " – \(formatter.string(from: event.endAt))"
         return text
     }
 
-    private func scheduleRow(title: String, subtitle: String) -> some View {
+    private func scheduleRow(title: String, address: String, time: String) -> some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 12)
                 .fill(primary.opacity(0.12))
@@ -169,7 +175,8 @@ struct LandlordSchedule: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.system(size: 14, weight: .semibold))
-                Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(address).font(.system(size: 12)).foregroundStyle(primary)
+                Text(time).font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
             Image(systemName: "chevron.right").foregroundStyle(.secondary)
@@ -177,28 +184,7 @@ struct LandlordSchedule: View {
         .padding(.vertical, 6)
     }
 
-    private var bg: Color {
-        Color(uiColor: UIColor { tc in
-            tc.userInterfaceStyle == .dark
-            ? UIColor(red: 0.06, green: 0.10, blue: 0.13, alpha: 1.0)
-            : UIColor(red: 0.96, green: 0.97, blue: 0.97, alpha: 1.0)
-        })
-    }
-
+    private var bg: Color { Color(uiColor: .systemGroupedBackground) }
     private var cardBg: Color { Color(uiColor: .secondarySystemBackground) }
     private var border: Color { Color.primary.opacity(0.08) }
-
-    private func deleteEvent(_ event: LDScheduleEvent) {
-        do {
-            let service = ScheduleEventService(context: viewContext)
-            try service.deleteScheduleEvent(event)
-        } catch {
-            print("Delete schedule event failed:", error.localizedDescription)
-        }
-    }
-}
-
-#Preview {
-    LandlordSchedule()
-        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }

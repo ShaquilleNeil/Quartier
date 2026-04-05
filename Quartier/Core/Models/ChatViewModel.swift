@@ -114,12 +114,6 @@ class ChatViewModel: ObservableObject {
         }
     }
     
-    
-    
-    
-    
-    
-    
     func cleanupMessages() {
         messagesListener?.remove()
     }

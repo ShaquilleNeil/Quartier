@@ -16,48 +16,41 @@ struct LoginSwitch: View {
     
     // MARK: - Body
     var body: some View {
-        VStack(spacing: 0) {
-            
-            // 1. The Switcher Header
-            ZStack {
-                Color(hex: "f6f7f8")
-                    .ignoresSafeArea()
+        NavigationStack {
+            VStack(spacing: 0) {
                 
-                HStack {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
-                            .foregroundColor(Color(hex: "0d141b"))
-                            .font(.system(size: 16, weight: .medium))
-                            .padding(12)
-                    }
+                // 1. The Switcher Header
+                ZStack {
+                    Color(hex: "f6f7f8")
+                        .ignoresSafeArea(edges: .top)
                     
-                    // The Picker
-                    Picker("Role", selection: $selectedRole.animation(.easeInOut)) {
-                        Text("Tenant").tag(UserType.tenant)
-                        Text("Landlord").tag(UserType.landlord)
+                    HStack {
+                        // The Picker
+                        Picker("Role", selection: $selectedRole.animation(.easeInOut)) {
+                            Text("Tenant").tag(UserType.tenant)
+                            Text("Landlord").tag(UserType.landlord)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 16)
                     }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, 16)
-                    
-                    Spacer().frame(width: 44)
+                    .padding(.bottom, 16)
                 }
-                .padding(.bottom, 8)
-            }
-            .frame(height: 60) 
-            
-            // 2. The Active Screen
-            Group {
-                if selectedRole == .tenant {
-                    TenantLogin()
-                        .toolbar(.hidden, for: .navigationBar)
-                } else {
-                    LandlordLogin()
-                        .toolbar(.hidden, for: .navigationBar)
+                .frame(height: 70)
+                
+                // 2. The Active Screen
+                Group {
+                    if selectedRole == .tenant {
+                        TenantLogin()
+                    } else {
+                        LandlordLogin()
+                    }
                 }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
-            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            .background(Color(hex: "f6f7f8"))
+            .toolbar(.hidden, for: .navigationBar)
         }
-        .background(Color(hex: "f6f7f8"))
     }
 }
 

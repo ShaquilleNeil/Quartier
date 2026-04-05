@@ -1,3 +1,7 @@
+//
+//  LandlordMessages.swift
+//  Quartier
+//
 import SwiftUI
 import FirebaseAuth
 
@@ -80,7 +84,8 @@ struct LandlordChatView: View {
                 inputBar
             }
         }
-        .navigationTitle(conversation.tenantName.isEmpty ? "Tenant" : conversation.tenantName)
+        
+        .navigationTitle(conversation.listingAddress.isEmpty ? "Tenant" : conversation.listingAddress)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if let id = conversation.id {
@@ -119,23 +124,18 @@ struct LandlordChatView: View {
         VStack(spacing: 0) {
             Divider().opacity(0.2)
             HStack(alignment: .bottom, spacing: 10) {
-                ZStack(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(Color(uiColor: .secondarySystemBackground))
-                    TextEditor(text: $messageText)
-                        .font(.system(size: 14))
-                        .scrollContentBackground(.hidden)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .frame(minHeight: 40, maxHeight: 120)
-                    if messageText.isEmpty {
-                        Text("Type a message...")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.secondary.opacity(0.7))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 14)
-                    }
-                }
+                
+                // FIXED: Changed TextEditor to an expanding TextField
+                TextField("Type a message...", text: $messageText, axis: .vertical)
+                    .font(.system(size: 14))
+                    .lineLimit(1...5)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18)
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                    )
+
                 Button {
                     if let id = conversation.id {
                         viewModel.sendMessage(
@@ -157,6 +157,7 @@ struct LandlordChatView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .padding(.bottom, 2)
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
