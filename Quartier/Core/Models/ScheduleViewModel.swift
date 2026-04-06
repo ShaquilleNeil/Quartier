@@ -78,7 +78,7 @@ class ScheduleViewModel: ObservableObject {
         let docRef = id != nil ? collection.document(id!) : collection.document()
         
         let event = ScheduleEvent(
-            id: docRef.documentID, landlordId: uid, title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            landlordId: uid, title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines), startAt: startAt, endAt: endAt,
             allDay: allDay, scopeAll: scopeAll, listingIds: listingIds
         )

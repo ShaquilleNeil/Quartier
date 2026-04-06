@@ -123,7 +123,7 @@ struct NewNoticeView: View {
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             body: bodyText.trimmingCharacters(in: .whitespacesAndNewlines),
             scopeAll: scopeAll,
-            listingIds: Array(selectedListingIDs)
+            listingIds: scopeAll ? myListings.compactMap { $0.id?.uuidString } : Array(selectedListingIDs)
         )
         
         dismiss()

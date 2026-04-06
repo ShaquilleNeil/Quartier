@@ -59,7 +59,7 @@ struct TenantRentedDash: View {
                     )
 
                     // MARK: Quick Actions Section
-                    QuickActionsGrid()
+                    QuickActionsGrid(listingId: auth.rentedListingId ?? "")
 
                     // MARK: Upcoming Event Section
                     VStack(alignment: .leading, spacing: 10) {
@@ -338,6 +338,14 @@ private struct RentStatusCard: View {
 }
 
 private struct QuickActionsGrid: View {
+    let listingId: String
+    @EnvironmentObject private var firebase: FirebaseManager
+
+    @State private var leaseURL: URL?
+    @State private var showLease = false
+    @State private var isLoadingLease = false
+    @State private var showNoLeaseAlert = false
+
     let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
     var body: some View {
@@ -347,14 +355,44 @@ private struct QuickActionsGrid: View {
                 .foregroundColor(.gray)
 
             LazyVGrid(columns: columns, spacing: 12) {
-                QuickActionCard(title: "Lease", icon: "doc.text.fill")
+                // Lease button loads and presents the PDF
+                Button {
+                    Task {
+                        isLoadingLease = true
+                        leaseURL = try? await firebase.loadLeaseDocument(listingId: listingId)
+                        isLoadingLease = false
+                        if leaseURL != nil {
+                            showLease = true
+                        } else {
+                            showNoLeaseAlert = true
+                        }
+                    }
+                } label: {
+                    if isLoadingLease {
+                        QuickActionCard(title: "Loading...", icon: "hourglass")
+                    } else {
+                        QuickActionCard(title: "Lease", icon: "doc.text.fill")
+                    }
+                }
+                .buttonStyle(.plain)
+                .alert("No Lease Found", isPresented: $showNoLeaseAlert) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text("Your landlord hasn't uploaded a lease yet.")
+                }
+
                 QuickActionCard(title: "Emergency", icon: "exclamationmark.triangle.fill")
                 QuickActionCard(title: "Maintenance", icon: "wrench.fill")
-                
+
                 NavigationLink(destination: TenantSchedule()) {
                     QuickActionCard(title: "Upcoming", icon: "calendar")
                 }
                 .buttonStyle(.plain)
+            }
+        }
+        .sheet(isPresented: $showLease) {
+            if let url = leaseURL {
+                SafariView(url: url) // or PDFKitView — see below
             }
         }
     }

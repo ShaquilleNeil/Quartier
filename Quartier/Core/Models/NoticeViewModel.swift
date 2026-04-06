@@ -33,7 +33,7 @@ class NoticeViewModel: ObservableObject {
         let docRef = collection.document()
 
         let notice = NoticeEvent(
-            id: docRef.documentID, landlordId: uid, title: title, body: body,
+            landlordId: uid, title: title, body: body,
             scopeAll: scopeAll, listingIds: listingIds, createdAt: Date()
         )
         try? docRef.setData(from: notice)

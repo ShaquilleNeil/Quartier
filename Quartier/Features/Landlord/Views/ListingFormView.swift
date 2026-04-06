@@ -20,6 +20,7 @@ struct ListingFormView: View {
     @State private var tenants: [TenantItem] = []
     @State private var selectedTenant: TenantItem? = nil
     @State private var originalTenantId: String = ""
+    @State private var attachedLeaseFileName: String? = nil
 
     // MARK: - Environment
 
@@ -28,6 +29,8 @@ struct ListingFormView: View {
     @Environment(\.managedObjectContext) var viewContext
     @Environment(\.dismiss) var dismiss
     @StateObject private var viewModel = ListingFormViewModel()
+    @State private var showDocumentPicker = false
+    @State private var selectedDocument: DocumentType?
 
 
     // MARK: - Constants
@@ -221,11 +224,44 @@ struct ListingFormView: View {
 
             if let tenant = selectedTenant {
                 selectedTenantChip(tenant)
+                Spacer()
+
+                if let fileName = attachedLeaseFileName {
+                    leaseChip(fileName: fileName)
+                } else {
+                    Button {
+                        selectedDocument = .lease
+                        showDocumentPicker = true
+                    } label: {
+                        Text("Attach Lease")
+                            .foregroundStyle(.blue)
+                    }
+                }
             } else {
                 TenantSearchField(
                     selectedTenant: $selectedTenant,
                     tenants: tenants
                 )
+            }
+        }
+        .fileImporter(
+            isPresented: $showDocumentPicker,
+            allowedContentTypes: [.pdf, .image],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let fileURL = urls.first,
+                      let type = selectedDocument else { return }
+                
+                guard fileURL.startAccessingSecurityScopedResource() else { return }
+                   defer { fileURL.stopAccessingSecurityScopedResource() }
+
+                attachedLeaseFileName = fileURL.lastPathComponent
+                firebase.uploadLeaseDocument(fileURL: fileURL, type: type, listingId: listing.id.uuidString)
+
+            case .failure(let error):
+                print("Error:", error)
             }
         }
     }
@@ -258,6 +294,30 @@ struct ListingFormView: View {
                 .frame(height: 120)
                 .modifier(FormCard())
         }
+    }
+    
+    private func leaseChip(fileName: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "doc.fill")
+                .foregroundStyle(.blue)
+
+            Text(fileName)
+                .font(.subheadline)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(.primary)
+
+            Button {
+                attachedLeaseFileName = nil
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.gray)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.blue.opacity(0.1))
+        .clipShape(Capsule())
     }
     
     

@@ -143,6 +143,9 @@ struct NewScheduleEventView: View {
         allDay = event.allDay
         scopeAll = event.scopeAll
         selectedListingIDs = Set(event.listingIds)
+        
+        print("📦 Firestore listingIds:", event.listingIds)
+            print("📦 CoreData uuidStrings:", myListings.compactMap { $0.id?.uuidString })
     }
 
     private func saveEvent() {
@@ -173,7 +176,7 @@ struct NewScheduleEventView: View {
             endAt: eventEnd,
             allDay: allDay,
             scopeAll: scopeAll,
-            listingIds: Array(selectedListingIDs)
+            listingIds: scopeAll ? myListings.compactMap { $0.id?.uuidString } : Array(selectedListingIDs)
         )
 
         onSaved?()

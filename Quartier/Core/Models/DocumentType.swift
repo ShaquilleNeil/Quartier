@@ -12,6 +12,7 @@ enum DocumentType: String, Codable, CaseIterable {
     case id
     case paystub
     case tax
+    case lease
 }
 
 enum DocumentStatus: String, Codable {

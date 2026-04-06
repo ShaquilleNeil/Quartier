@@ -424,6 +424,38 @@ class FirebaseManager: ObservableObject {
         }
     }
     
+    func uploadLeaseDocument(fileURL: URL, type: DocumentType, listingId: String) {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        
+        print("📤 Starting upload for listingId:", listingId)
+        
+        let storageRef = storage.reference()
+            .child("users/\(uid)/documents/\(listingId)/\(type.rawValue).pdf")
+
+        storageRef.putFile(from: fileURL, metadata: nil) { _, error in
+            if let error = error { print("Upload error:", error); return }
+
+            storageRef.downloadURL { url, error in
+                if let error = error { print("Download URL error:", error); return }
+                guard let downloadURL = url else { return }
+
+                print("✅ File uploaded, getting download URL")
+                
+                self.db.collection("documents")
+                    .document("\(listingId)_\(type.rawValue)")
+                    .setData([
+                        "type": type.rawValue,
+                        "url": downloadURL.absoluteString,
+                        "listingId": listingId,
+                        "landlordId": uid,
+                        "status": DocumentStatus.pending.rawValue,
+                        "createdAt": FieldValue.serverTimestamp(),
+                        "updatedAt": FieldValue.serverTimestamp()
+                    ])
+            }
+        }
+    }
+    
     func deleteDocument(type: DocumentType) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let storageRef = storage.reference().child("users/\(uid)/documents/\(type.rawValue).pdf")
@@ -482,6 +514,17 @@ class FirebaseManager: ObservableObject {
                     self.userDocuments = fetched
                 }
             }
+    }
+    
+    func loadLeaseDocument(listingId: String) async throws -> URL? {
+        let snapshot = try await db.collection("documents")
+            .document("\(listingId)_\(DocumentType.lease.rawValue)")
+            .getDocument()
+        
+        guard let urlString = snapshot.data()?["url"] as? String,
+              let url = URL(string: urlString) else { return nil }
+        
+        return url
     }
     
     // MARK: - Favorites
