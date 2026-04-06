@@ -427,7 +427,7 @@ class FirebaseManager: ObservableObject {
     func uploadLeaseDocument(fileURL: URL, type: DocumentType, listingId: String) {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         
-        print("📤 Starting upload for listingId:", listingId)
+ 
         
         let storageRef = storage.reference()
             .child("users/\(uid)/documents/\(listingId)/\(type.rawValue).pdf")
@@ -439,7 +439,6 @@ class FirebaseManager: ObservableObject {
                 if let error = error { print("Download URL error:", error); return }
                 guard let downloadURL = url else { return }
 
-                print("✅ File uploaded, getting download URL")
                 
                 self.db.collection("documents")
                     .document("\(listingId)_\(type.rawValue)")
@@ -454,6 +453,16 @@ class FirebaseManager: ObservableObject {
                     ])
             }
         }
+    }
+    
+    
+    func fetchLeaseFileName(listingId: String) async -> String? {
+        let snapshot = try? await db.collection("documents")
+            .document("\(listingId)_lease")
+            .getDocument()
+        
+        guard snapshot?.exists == true else { return nil }
+        return snapshot?.data()?["fileName"] as? String ?? "lease.pdf"
     }
     
     func deleteDocument(type: DocumentType) {

@@ -79,6 +79,7 @@ struct ListingFormView: View {
         .onAppear {
             viewModel.configure(firebase: firebase, coreData: coreDataManager)
             setupView()
+            loadExistingLease()
         }
         .onChange(of: selectedTenant) { tenant in
             listing.tenantId = tenant?.id ?? ""
@@ -318,6 +319,13 @@ struct ListingFormView: View {
         .padding(.vertical, 8)
         .background(Color.blue.opacity(0.1))
         .clipShape(Capsule())
+    }
+    
+    private func loadExistingLease() {
+        guard isEditing else { return }
+        Task {
+            attachedLeaseFileName = await firebase.fetchLeaseFileName(listingId: listing.id.uuidString)
+        }
     }
     
     
