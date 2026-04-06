@@ -20,6 +20,7 @@ final class FirebaseSync {
     
     init(collectionPath: String = "listings") {
         self.collectionPath = collectionPath
+        self.lastSync = UserDefaults.standard.object(forKey: "firestoreLastSync_\(collectionPath)") as? Date ?? Date(timeIntervalSince1970: 0)
     }
     
 
@@ -93,8 +94,10 @@ final class FirebaseSync {
 
                 // update checkpoint
                 if let updated = (snapshot.documents.last?.data()["updatedAt"] as? Timestamp)?.dateValue() {
-                    self.lastSync = updated
-                }
+                        self.lastSync = updated
+                        UserDefaults.standard.set(updated, forKey: "firestoreLastSync_\(self.collectionPath)")
+                    }
+
 
                 DispatchQueue.main.async {
                     onApplyingRemote(false)
@@ -220,7 +223,8 @@ final class FirebaseSync {
     
     //serialise (change obj)
     private func serialise(listing: LDListing) -> [String: Any] {
-        return [
+        var data: [String: Any] = [
+            
             "listingName": listing.listingName ?? "",
             "landLordId": listing.landLordID ?? "",
             "tenantId": listing.tenantID ?? "",
@@ -232,11 +236,15 @@ final class FirebaseSync {
             "rules": listing.rules ?? "",
             "address": listing.address ?? "",
             "isRented": listing.isRented,
-
-            // Firestore server timestamps (prevents invalid dates)
-            "createdAt": FieldValue.serverTimestamp(),
             "updatedAt": FieldValue.serverTimestamp()
         ]
+        
+        if listing.createdAt == nil {
+            data["createdAt"] = FieldValue.serverTimestamp()
+        }
+        return data
+            
+        
     }
     
     

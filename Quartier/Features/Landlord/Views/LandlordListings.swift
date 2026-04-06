@@ -45,7 +45,7 @@ private struct MyListingsView: View {
     }
 
     private var draftRows: [LDListing] {
-        userDraftListings.filter { !$0.isRented }
+        userDraftListings.filter { $0.status == "draft" && !$0.isRented }
     }
 
     private var rentedDraftsNotOnFirebase: [LDListing] {
@@ -354,6 +354,19 @@ private struct MyListingsView: View {
                             Capsule()
                                 .fill(statusColor(for: item.status.rawValue).opacity(0.18))
                         )
+//                    Button(role: .destructive) {
+//                        if let id = listing.listingID {
+//                            coreDataManager.deleteDraft(
+//                                listingID: id,
+//                                context: viewContext
+//                            )
+//                        }
+//                    } label: {
+//                        Image(systemName: "trash")
+//                            .resizable()
+//                            .frame(width: 24, height: 24)
+//                            .foregroundColor(.red)
+//                    }
                 }
 
                 Text(formattedPrice(item.price) +

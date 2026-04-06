@@ -184,6 +184,25 @@ class FirebaseManager: ObservableObject {
         }
     }
     
+    func fetchListingsLandlordPublic(forLandlord uid: String) {
+        db.collection("listings")
+            .whereField("landLordId", isEqualTo: uid)
+            .whereField("status", isEqualTo: "published")
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("fetchListingsLandlordPublic error:", error)
+                    return
+                }
+                guard let documents = snapshot?.documents else { return }
+                print("📋 Found \(documents.count) listings for landlord \(uid)")
+                self.parseListings(documents: documents) { listings in
+                    DispatchQueue.main.async {
+                        self.firebaseListings = listings.sorted { $0.updatedAt > $1.updatedAt }
+                    }
+                }
+            }
+    }
+    
     func fetchAllListings() {
         db.collection("listings").whereField("isRented", isEqualTo: false).getDocuments { snapshot, _ in
             guard let documents = snapshot?.documents else { return }
@@ -561,6 +580,14 @@ class FirebaseManager: ObservableObject {
                 self.savedListings = self.allListings.filter { ids.contains($0.id.uuidString) }
             }
         }
+    }
+    
+    func fetchLandlordProfile(uid: String) async -> (name: String?, photoURL: String?) {
+        let snapshot = try? await db.collection("users").document(uid).getDocument()
+        let data = snapshot?.data()
+        let name = data?["name"] as? String ?? data?["email"] as? String
+        let photo = data?["profilePic"] as? String
+        return (name, photo)
     }
     
     // MARK: - Preferences

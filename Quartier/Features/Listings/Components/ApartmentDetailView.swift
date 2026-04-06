@@ -20,6 +20,8 @@ struct ApartmentDetailView: View {
     @State private var chatError: String?
     @Environment(\.managedObjectContext) private var viewContext
     @EnvironmentObject private var firebase: FirebaseManager
+    @State private var landlordName: String? = nil
+    @State private var landlordPhotoURL: String? = nil
 
     var body: some View {
 
@@ -33,6 +35,11 @@ struct ApartmentDetailView: View {
                }
            }
            .ignoresSafeArea(edges: .top)
+           .task {
+                   let profile = await firebase.fetchLandlordProfile(uid: listing.landLordId)
+                   landlordName = profile.name
+                   landlordPhotoURL = profile.photoURL
+               }
            .sheet(item: $activeConversation) { conv in
                 let firebaseConv = Conversation(
                     id: conv.id?.uuidString ?? UUID().uuidString,
@@ -50,7 +57,7 @@ struct ApartmentDetailView: View {
                         .environment(\.managedObjectContext, viewContext)
                 }
             }
-        .alert("Message", isPresented: Binding(
+           .alert("Message", isPresented: Binding(
             get: { chatError != nil },
             set: { _ in chatError = nil }
         )) {
@@ -137,7 +144,7 @@ struct ApartmentDetailView: View {
             .foregroundStyle(.blue)
 
             Spacer()
-                .frame(height: 20)
+                .frame(height: 10)
 
             Text("Amenities")
                 .font(.subheadline.bold())
@@ -149,10 +156,69 @@ struct ApartmentDetailView: View {
             }
 
             Spacer()
-                .frame(height: 20)
+                .frame(height: 10)
+            
+            Divider()
+            NavigationLink(destination: LandlordProfile(landlordId: listing.landLordId, publicView: true)) {
+                HStack(spacing: 12) {
+                    Group {
+                        if let urlString = landlordPhotoURL, let url = URL(string: urlString) {
+                            WebImage(url: url)
+                                .resizable()
+                                .indicator(.activity)
+                                .scaledToFill()
+                        } else {
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .foregroundStyle(.blue.opacity(0.8))
+                        }
+                    }
+                    .frame(width: 44, height: 44)
+                    .clipShape(Circle())
 
-            Text("Location")
-                .font(.subheadline.bold())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Listed by")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(landlordName ?? "Loading...")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.primary)
+                    }
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+            .buttonStyle(.plain)
+            Divider()
+
+            HStack {
+                
+                Text("Location")
+                    .font(.subheadline.bold())
+                
+                Spacer()
+                
+                Button("Get Directions") {
+                    let latitude: CLLocationDegrees = listing.latitude!
+                    let longitude: CLLocationDegrees = listing.longitude!
+                            let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+
+                            let placemark = MKPlacemark(coordinate: coordinate)
+                            let mapItem = MKMapItem(placemark: placemark)
+                    mapItem.name = "\(listing.listingName)"
+
+                            // Launches Apple Maps app
+                            mapItem.openInMaps(launchOptions: [
+                                MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
+                            ])
+                        }
+
+            }
+            
 
             MapCard(
                 coordinate: apartmentCoordinate,
@@ -339,7 +405,7 @@ extension Listing {
         listing.rules = "No smoking. Pets allowed."
         listing.existingImageURLs = [ "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688",
                                       "https://images.unsplash.com/photo-1493809842364-78817add7ffb",
-                                      "https://images.unsplash.com/photo-1484154218962-a197022b5858"] // or put a real URL
+                                      "https://images.unsplash.com/photo-1484154218962-a197022b5858"]
 
         listing.latitude = 45.5017
         listing.longitude = -73.5673

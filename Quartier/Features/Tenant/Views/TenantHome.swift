@@ -135,7 +135,7 @@ struct SearchBar: View {
                 }
             }
             .padding(12)
-            .background(Color(.systemGray6))
+            .background(Color.white)
             .cornerRadius(14)
             
             Button(action: onFilterTapped) {

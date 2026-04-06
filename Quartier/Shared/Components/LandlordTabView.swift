@@ -23,7 +23,7 @@ struct LandlordTabView: View {
                 LandlordMessages()
             }
             Tab("Profile", systemImage: "person.fill"){
-                LandlordProfile()
+                LandlordProfile(publicView: false)
             }
         }
     }
