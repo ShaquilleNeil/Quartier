@@ -382,7 +382,11 @@ private struct QuickActionsGrid: View {
                 }
 
                 QuickActionCard(title: "Emergency", icon: "exclamationmark.triangle.fill")
-                QuickActionCard(title: "Maintenance", icon: "wrench.fill")
+                
+                NavigationLink(destination: MaintenanceForm()) {
+                    QuickActionCard(title: "Maintenance", icon: "wrench.fill")
+                }
+                .buttonStyle(.plain)
 
                 NavigationLink(destination: TenantSchedule()) {
                     QuickActionCard(title: "Upcoming", icon: "calendar")

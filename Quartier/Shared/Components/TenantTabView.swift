@@ -8,6 +8,7 @@ import Combine
 
 struct TenantTabView: View {
     @EnvironmentObject var authService: AuthService
+    @State private var selectedTab: TenantTab = .home
     
     var body: some View {
         TabView {
@@ -15,7 +16,7 @@ struct TenantTabView: View {
                 if authService.isRenting {
                     TenantRentedDash()
                 } else {
-                    TenantHome()
+                    TenantHome(selectedTab: .constant(.home))
                 }
             }
             .tabItem {

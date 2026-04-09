@@ -35,34 +35,33 @@ struct TenantDiscover: View {
 
     private let minZoom: CLLocationDistance = 500
     private let maxZoom: CLLocationDistance = 20000
+    
+    
 
     // MARK: - Body
     
     var body: some View {
-        VStack(spacing: 0) {
-            
-      
+        ZStack(alignment: .top) {
             if authService.isRenting {
+                switch selectedTab {
+                case .home:
+                    TenantHome(selectedTab: $selectedTab)
+                case .discover:
+                    discoverMapView
+                }
+            } else {
+                discoverMapView
+            }
+
+            // Show picker over the map when on discover tab
+            if authService.isRenting && selectedTab == .discover {
                 Picker("", selection: $selectedTab) {
                     Text("Home").tag(TenantTab.home)
                     Text("Discover").tag(TenantTab.discover)
                 }
                 .pickerStyle(.segmented)
-                .padding()
-            }
-            
-         
-            ZStack {
-                if authService.isRenting {
-                    switch selectedTab {
-                    case .home:
-                        TenantHome()
-                    case .discover:
-                        discoverMapView
-                    }
-                } else {
-                    discoverMapView
-                }
+                .padding(.horizontal)
+                .padding(.top, 8)
             }
         }
         .onAppear {

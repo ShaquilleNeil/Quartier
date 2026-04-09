@@ -65,6 +65,8 @@ struct ListingFormView: View {
                 photoPicker
                 imagePreviewRow
                 TextField("Name", text: $listing.listingName)
+                    .background(Color.white)
+                    .foregroundStyle(.black)
                 priceSection
                 addressSection
                 detailsSection
@@ -80,6 +82,7 @@ struct ListingFormView: View {
             viewModel.configure(firebase: firebase, coreData: coreDataManager)
             setupView()
             loadExistingLease()
+            loadExistingImages()
         }
         .onChange(of: selectedTenant) { tenant in
             listing.tenantId = tenant?.id ?? ""
@@ -135,6 +138,21 @@ struct ListingFormView: View {
     private var imagePreviewRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack {
+                
+                ForEach(listing.existingImageURLs.indices, id: \.self) { index in
+                    let urlString = listing.existingImageURLs[index]
+                    WebImage(url: URL(string: urlString))
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 110, height: 110)
+                        .clipped()
+                        .cornerRadius(12)
+                        .onTapGesture {
+                            setAsCoverExisting(index: index)
+                        }
+                }
+
+               
                 ForEach(listing.images.indices, id: \.self) { index in
                     Image(uiImage: listing.images[index])
                         .resizable()
@@ -148,6 +166,19 @@ struct ListingFormView: View {
                 }
             }
         }
+    }
+    private func loadExistingImages() {
+        guard isEditing else { return }
+        Task {
+            let urls = await firebase.downloadListingImages(forListingId: listing.id.uuidString)
+            await MainActor.run {
+                listing.existingImageURLs = urls.map { $0.absoluteString }
+            }
+        }
+    }
+    private func setAsCoverExisting(index: Int) {
+        let selected = listing.existingImageURLs.remove(at: index)
+        listing.existingImageURLs.insert(selected, at: 0)
     }
     
     private func setupView() {
@@ -333,6 +364,7 @@ struct ListingFormView: View {
         HStack {
 
             Button("Save as Draft") {
+                
                 listing.status = .draft
                 viewModel.saveDraft(listing: listing, context: viewContext)
                 showDraftSavedAlert = true
@@ -358,3 +390,4 @@ struct ListingFormView: View {
     
     
 }
+

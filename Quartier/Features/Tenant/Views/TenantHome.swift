@@ -9,10 +9,12 @@ import FirebaseFirestore
 import CoreData
 
 struct TenantHome: View {
+    @Binding var selectedTab: TenantTab
     @State private var showingPreferences = false
     @State private var searchText: String = ""
     @EnvironmentObject var firebase: FirebaseManager
     @EnvironmentObject var coreDataManager: CoreDataManager
+    @EnvironmentObject var authService: AuthService
     
     @Environment(\.managedObjectContext) private var context
     
@@ -55,6 +57,13 @@ struct TenantHome: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
+                if authService.isRenting == true {
+                    Picker("", selection: $selectedTab) {
+                        Text("Home").tag(TenantTab.home)
+                        Text("Discover").tag(TenantTab.discover)
+                    }
+                    .pickerStyle(.segmented)
+                }
                 SearchBar(searchText: $searchText, onFilterTapped: {
                     showingPreferences = true
                 })

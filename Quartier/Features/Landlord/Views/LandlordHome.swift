@@ -16,6 +16,9 @@ private struct LandlordDashboardView: View {
     
     @StateObject private var chatVM = ChatViewModel()
     @StateObject private var scheduleVM = ScheduleViewModel()
+    @State private var totalRent = 0.0
+    @State private var totalPossible = 0.0
+    @EnvironmentObject var firebaseManager: FirebaseManager
 
     @FetchRequest(
         sortDescriptors: [],
@@ -23,6 +26,8 @@ private struct LandlordDashboardView: View {
     )
     private var allCoreDataListings: FetchedResults<LDListing>
 
+    @State private var latestRequest: MaintenanceRequest? = nil
+    @State private var latestRequestListingId: String? = nil
     @State private var showNewNotice = false
 
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
@@ -31,12 +36,12 @@ private struct LandlordDashboardView: View {
 
     private var currentUid: String { Auth.auth().currentUser?.uid ?? "" }
     
-    private var myListings: [LDListing] {
-        allCoreDataListings.filter { $0.landLordID == currentUid }
+    private var myListings: [Listing] {
+        firebaseManager.firebaseListings
     }
 
     var occupantsCount: Int {
-        myListings.filter { $0.isRented }.count
+        firebaseManager.firebaseListings.filter { $0.isRented }.count
     }
 
     var upcomingEvent: ScheduleEvent? {
@@ -53,6 +58,11 @@ private struct LandlordDashboardView: View {
         return "there"
     }
 
+    private var earningsPercent: Double {
+        guard totalPossible > 0 else { return 0.0 }
+        return (totalRent / totalPossible) * 100
+    }
+    
     var body: some View {
         ZStack {
             Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
@@ -94,16 +104,17 @@ private struct LandlordDashboardView: View {
                             Text("Total Earnings")
                                 .font(.subheadline.weight(.medium))
                                 .foregroundStyle(.secondary)
-                            Text("$0.00")
-                                .font(.title2.weight(.bold))
+                            Text(String(format: "CA$%.0f / $%.0f", totalRent, totalPossible))
+                                .font(.headline.weight(.bold))
                         }
                         Spacer()
-                        Text("0.0%")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.gray)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(Color.gray.opacity(0.12)))
+                       
+                        Text(String(format: "%.1f%%", earningsPercent))
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle( earningsPercent < 50 ? .red : .green)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Capsule().fill(Color.gray.opacity(0.12)))
                     }
                     .padding(16)
                     .background(RoundedRectangle(cornerRadius: 16).fill(cardBg))
@@ -193,7 +204,53 @@ private struct LandlordDashboardView: View {
                         }
                     }
 
-                    Spacer(minLength: 40)
+//                    Spacer(minLength: 40)
+                    
+                    
+               
+                                        VStack(alignment: .leading, spacing: 10) {
+                                            HStack {
+                                                Text("Maintenance")
+                                                    .font(.system(size: 18, weight: .bold))
+                                                Spacer()
+                                                if let listingId = latestRequestListingId {
+                                                    NavigationLink(destination: MaintenanceListView(listingId: listingId)) {
+                                                        Text("View All")
+                                                            .font(.subheadline)
+                                                            .foregroundStyle(primary)
+                                                    }
+                                                }
+                                            }
+                                            .padding(.horizontal, 16)
+
+                                            if let request = latestRequest, let listingId = latestRequestListingId {
+                                                NavigationLink(destination: MaintenanceDetailView(
+                                                    request: request,
+                                                    listingId: listingId,
+                                                    onResolved: {
+                                                        firebaseManager.fetchLatestMaintenanceRequest { req, lid in
+                                                            latestRequest = req
+                                                            latestRequestListingId = lid
+                                                        }
+                                                    }
+                                                )) {
+                                                    MaintenanceCard(request: request)
+                                                        .padding(.horizontal, 16)
+                                                }
+                                                .buttonStyle(.plain)
+                                            } else {
+                                                Text("No maintenance requests.")
+                                                    .font(.system(size: 14))
+                                                    .foregroundStyle(.secondary)
+                                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                                    .padding(16)
+                                                    .background(RoundedRectangle(cornerRadius: 16).fill(cardBg))
+                                                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(border, lineWidth: 1))
+                                                    .padding(.horizontal, 16)
+                                            }
+                                        }
+
+                                        Spacer(minLength: 40)
                 }
             }
         }
@@ -203,8 +260,17 @@ private struct LandlordDashboardView: View {
                 .environment(\.managedObjectContext, viewContext)
         }
         .onAppear {
-            chatVM.loadConversations(isLandlord: true)
-            scheduleVM.loadEvents()
+            Task{
+                chatVM.loadConversations(isLandlord: true)
+                scheduleVM.loadEvents()
+                totalRent = await firebaseManager.totalRentCollected()
+                totalPossible = await firebaseManager.totalPossibleEarnings()
+                firebaseManager.fetchListingsLandlord()
+                firebaseManager.fetchLatestMaintenanceRequest { req, lid in
+                    latestRequest = req
+                    latestRequestListingId = lid
+                }
+            }
         }
         .onDisappear {
             chatVM.cleanupConversations()

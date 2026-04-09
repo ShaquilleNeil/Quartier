@@ -194,7 +194,7 @@ class FirebaseManager: ObservableObject {
                     return
                 }
                 guard let documents = snapshot?.documents else { return }
-                print("📋 Found \(documents.count) listings for landlord \(uid)")
+              
                 self.parseListings(documents: documents) { listings in
                     DispatchQueue.main.async {
                         self.firebaseListings = listings.sorted { $0.updatedAt > $1.updatedAt }
@@ -214,6 +214,42 @@ class FirebaseManager: ObservableObject {
             }
         }
     }
+    
+    func downloadListingImages(forListingId id: String) async -> [URL] {
+        let snapshot = try? await db.collection("listings")
+            .document(id)
+            .getDocument()
+        
+        let strings = snapshot?.data()?["images"] as? [String] ?? []
+        return strings.compactMap { URL(string: $0) }
+    }
+    
+    func totalRentCollected() async -> Double {
+        let snapshot = try? await db.collection("listings")
+            .whereField("landLordId", isEqualTo: Auth.auth().currentUser?.uid ?? "")
+            .whereField("isRented", isEqualTo: true)
+            .getDocuments()
+        
+        let total = snapshot?.documents.reduce(0.0) { sum, doc in
+            sum + (doc.data()["price"] as? Double ?? 0)
+        } ?? 0
+        
+        return total
+    }
+    
+    func totalPossibleEarnings() async -> Double {
+        let snapshot = try? await db.collection("listings")
+            .whereField("landLordId", isEqualTo: Auth.auth().currentUser?.uid ?? "")
+            .getDocuments()
+        
+        let total = snapshot?.documents.reduce(0.0) { sum, doc in
+            sum + (doc.data()["price"] as? Double ?? 0)
+        } ?? 0
+        
+        return total
+    }
+    
+    
     
     private func parseListings(
         documents: [QueryDocumentSnapshot],
@@ -314,6 +350,7 @@ class FirebaseManager: ObservableObject {
                        completion?(.failure(error))
                    } else {
                        completion?(.success(()))
+                       self.fetchListingsLandlord()
                    }
                }
            }
@@ -404,6 +441,22 @@ class FirebaseManager: ObservableObject {
                 }
             }
         }
+    }
+    
+    func deleteListing(listing: Listing) {
+        
+        let uid = listing.listingID
+        
+        db.collection("listings")
+            .document(uid.uuidString)
+            .delete { error in
+                if let error = error {
+                    print("Firestore delete error: \(error.localizedDescription)")
+                } else {
+                    print("Listing \(uid) successfully deleted.")
+                    self.fetchListingsLandlord()
+                }
+            }
     }
     
     
@@ -743,7 +796,167 @@ class FirebaseManager: ObservableObject {
             }
         }
     }
+    
+    
+    
+    
+    
+    
+    
+    
+    // MARK: - Maintenance
+
+    func submitMaintenanceRequest(
+        request: MaintenanceRequest,
+        photos: [UIImage],
+        completion: @escaping (Error?) -> Void
+    ) {
+        guard let listingId = currentUser?.apartmentId, !listingId.isEmpty else {
+            completion(NSError(domain: "Maintenance", code: 0, userInfo: [NSLocalizedDescriptionKey: "No listing found"]))
+            return
+        }
+
+        uploadListingImages(listingId: UUID(uuidString: listingId) ?? UUID(), images: photos) { photoURLs in
+            let data: [String: Any] = [
+                "id": request.id.uuidString,
+                "listingId": listingId,
+                "tenantId": request.tenantId,
+                "description": request.description,
+                "date": Timestamp(date: request.date),
+                "status": request.status.rawValue,
+                "photoURLs": photoURLs,
+                "createdAt": FieldValue.serverTimestamp()
+            ]
+
+            self.db.collection("listings")
+                .document(listingId)
+                .collection("maintenanceRequests")
+                .document(request.id.uuidString)
+                .setData(data) { error in
+                    completion(error)
+                }
+        }
+    }
+    
+
+    func fetchLatestMaintenanceRequest(completion: @escaping (MaintenanceRequest?, String?) -> Void) {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            completion(nil, nil)
+            return
+        }
+
+        db.collection("listings")
+            .whereField("landLordId", isEqualTo: uid)
+            .getDocuments { snapshot, _ in
+                guard let listingIds = snapshot?.documents.map({ $0.documentID }),
+                      !listingIds.isEmpty else {
+                    completion(nil, nil)
+                    return
+                }
+
+                var allRequests: [(MaintenanceRequest, String)] = []
+                var fetched = 0
+
+                for listingId in listingIds {
+                    self.db.collection("listings")
+                        .document(listingId)
+                        .collection("maintenanceRequests")
+                        .order(by: "createdAt", descending: true)
+                        .limit(to: 1)
+                        .getDocuments { snapshot, _ in
+
+                            if let doc = snapshot?.documents.first {
+                                let data = doc.data()
+
+                                if let tenantId = data["tenantId"] as? String,
+                                   let description = data["description"] as? String,
+                                   let date = (data["date"] as? Timestamp)?.dateValue() {
+
+                                    let request = MaintenanceRequest(
+                                        id: UUID(uuidString: doc.documentID) ?? UUID(),
+                                        listingId: listingId,
+                                        tenantId: tenantId,
+                                        description: description,
+                                        date: date,
+                                        status: MaintenanceStatus(rawValue: data["status"] as? String ?? "pending") ?? .pending,
+                                        photoURLs: data["photoURLs"] as? [String] ?? []
+                                    )
+                                    allRequests.append((request, listingId))
+                                }
+                            }
+
+                            fetched += 1
+
+                            // once all listings have been checked, return the latest
+                            if fetched == listingIds.count {
+                                let latest = allRequests.max(by: { $0.0.date < $1.0.date })
+                                DispatchQueue.main.async {
+                                    completion(latest?.0, latest?.1)
+                                }
+                            }
+                        }
+                }
+            }
+    }
+
+    func resolveMaintenanceRequest(
+        listingId: String,
+        requestId: String,
+        completion: @escaping (Error?) -> Void
+    ) {
+        db.collection("listings")
+            .document(listingId)
+            .collection("maintenanceRequests")
+            .document(requestId)
+            .updateData(["status": MaintenanceStatus.resolved.rawValue]) { error in
+                completion(error)
+            }
+    }
+    
+    
+    
+    func fetchMaintenanceRequests(
+        listingId: String,
+        completion: @escaping ([MaintenanceRequest]) -> Void
+    ) {
+        db.collection("listings")
+            .document(listingId)
+            .collection("maintenanceRequests")
+            .order(by: "createdAt", descending: true)
+            .getDocuments { snapshot, _ in
+                guard let documents = snapshot?.documents else {
+                    completion([])
+                    return
+                }
+
+                let requests = documents.compactMap { doc -> MaintenanceRequest? in
+                    let data = doc.data()
+
+                    guard let tenantId = data["tenantId"] as? String,
+                          let description = data["description"] as? String,
+                          let date = (data["date"] as? Timestamp)?.dateValue()
+                    else { return nil }
+
+                    return MaintenanceRequest(
+                        id: UUID(uuidString: doc.documentID) ?? UUID(),
+                        listingId: listingId,
+                        tenantId: tenantId,
+                        description: description,
+                        date: date,
+                        status: MaintenanceStatus(rawValue: data["status"] as? String ?? "pending") ?? .pending,
+                        photoURLs: data["photoURLs"] as? [String] ?? []
+                    )
+                }
+
+                DispatchQueue.main.async {
+                    completion(requests)
+                }
+            }
+    }
+    
+    
 }
     
     
     
+

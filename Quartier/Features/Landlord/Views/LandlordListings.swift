@@ -354,19 +354,15 @@ private struct MyListingsView: View {
                             Capsule()
                                 .fill(statusColor(for: item.status.rawValue).opacity(0.18))
                         )
-//                    Button(role: .destructive) {
-//                        if let id = listing.listingID {
-//                            coreDataManager.deleteDraft(
-//                                listingID: id,
-//                                context: viewContext
-//                            )
-//                        }
-//                    } label: {
-//                        Image(systemName: "trash")
-//                            .resizable()
-//                            .frame(width: 24, height: 24)
-//                            .foregroundColor(.red)
-//                    }
+                    Button(role: .destructive) {
+                        firebase.deleteListing(listing: item)
+                        
+                    } label: {
+                        Image(systemName: "trash")
+                            .resizable()
+                            .frame(width: 24, height: 24)
+                            .foregroundColor(.red)
+                    }
                 }
 
                 Text(formattedPrice(item.price) +
