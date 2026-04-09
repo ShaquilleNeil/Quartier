@@ -20,6 +20,7 @@ struct SignUp: View {
     @State private var password = ""
     @State private var isPasswordVisible = false
     @EnvironmentObject var authService: AuthService
+    @State private var fieldErrors: [String: String] = [:]
     
     var body: some View {
         ZStack {
@@ -79,6 +80,12 @@ struct SignUp: View {
                             
                             TextField("Enter your full name", text: $fullName)
                                 .modifier(QuartierFieldModifier())
+                            
+                            if let error = fieldErrors["fullName"] {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
                         }
                         
                         VStack(alignment: .leading, spacing: 6) {
@@ -90,6 +97,12 @@ struct SignUp: View {
                                 .keyboardType(.emailAddress)
                                 .textInputAutocapitalization(.never)
                                 .modifier(QuartierFieldModifier())
+                            
+                            if let error = fieldErrors["email"] {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
                         }
                         
                         VStack(alignment: .leading, spacing: 6) {
@@ -111,6 +124,12 @@ struct SignUp: View {
                                         .foregroundColor(.gray)
                                         .padding(.trailing, 16)
                                 }
+                            }
+                            
+                            if let error = fieldErrors["password"] {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
                             }
                         }
                     }
@@ -152,6 +171,7 @@ struct SignUp: View {
     }
     
     func handleSignUp() {
+        if !validate() { return }
         authService.register(email: email, password: password, role: selectedRole.rawValue) { success in
             
             guard success else {
@@ -177,6 +197,25 @@ struct SignUp: View {
                 }
             }
         }
+    }
+    
+    
+    func validate()-> Bool {
+        var errors: [String: String] = [:]
+        
+        if fullName.isEmpty {
+            errors["fullName"] = "Full name is required"
+        }
+        
+        if email.isEmpty {
+            errors["email"] = "Email is required"
+        }
+        if password.isEmpty {
+            errors["password"] = "Password is required"
+        }
+        
+        fieldErrors = errors
+        return errors.isEmpty
     }
 }
 

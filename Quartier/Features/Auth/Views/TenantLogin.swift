@@ -14,6 +14,7 @@ struct TenantLogin: View {
     @State private var email = ""
     @State private var password = ""
     @State private var isPasswordVisible = false
+    @State private var fieldErrors: [String: String] = [:]
     
     var body: some View {
         NavigationStack {
@@ -54,11 +55,19 @@ struct TenantLogin: View {
                                 Text("Email")
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(Color(hex: "0d141b"))
-                                
+                               
                                 TextField("Enter your email", text: $email)
                                     .modifier(QuartierFieldModifier())
                                     .keyboardType(.emailAddress)
                                     .textInputAutocapitalization(.never)
+                                
+                                if let error = fieldErrors["email"] {
+                                    Text(error)
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
+                                
+                               
                             }
                             
                             VStack(alignment: .leading, spacing: 6) {
@@ -75,15 +84,24 @@ struct TenantLogin: View {
                                             .modifier(QuartierFieldModifier())
                                     }
                                     
+                                    
                                     Button(action: { isPasswordVisible.toggle() }) {
                                         Image(systemName: isPasswordVisible ? "eye" : "eye.slash")
                                             .foregroundColor(Color(hex: "4c739a"))
                                             .padding(.trailing, 16)
                                     }
                                 }
+                                
+                                if let error = fieldErrors["password"] {
+                                    Text(error)
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
                             }
                         }
                         .padding(.horizontal, 24)
+                        
+                       
                         
                         HStack {
                             Spacer()
@@ -109,22 +127,6 @@ struct TenantLogin: View {
                         .padding(.horizontal, 24)
                         .padding(.top, 24)
                         
-                        HStack {
-                            Rectangle().fill(Color(hex: "cfdbe7")).frame(height: 1)
-                            Text("Or continue with")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(Color(hex: "4c739a"))
-                                .padding(.horizontal, 8)
-                            Rectangle().fill(Color(hex: "cfdbe7")).frame(height: 1)
-                        }
-                        .padding(.vertical, 24)
-                        .padding(.horizontal, 24)
-                        
-                        VStack(spacing: 12) {
-                            SocialButton(text: "Continue with Google", iconName: "globe")
-                            SocialButton(text: "Continue with Apple", iconName: "apple.logo", isDark: true)
-                        }
-                        .padding(.horizontal, 24)
                         
                         HStack {
                             Text("New to Quartier?")
@@ -149,6 +151,7 @@ struct TenantLogin: View {
     }
     
     func handleLogin() {
+        if !validate() { return }
         authService.login(email: email, password: password) { success in
             if success {
                 print("logged in tenant!")
@@ -157,7 +160,26 @@ struct TenantLogin: View {
             }
         }
     }
+    
+    
+    
+    
+    func validate()-> Bool {
+        var errors: [String: String] = [:]
+        
+        if email.isEmpty {
+            errors["email"] = "Email is required"
+        }
+        if password.isEmpty {
+            errors["password"] = "Password is required"
+        }
+        
+        fieldErrors = errors
+        return errors.isEmpty
+    }
 }
+
+
 
 #Preview {
     let firebase = FirebaseManager()

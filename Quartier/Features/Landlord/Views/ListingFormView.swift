@@ -21,6 +21,7 @@ struct ListingFormView: View {
     @State private var selectedTenant: TenantItem? = nil
     @State private var originalTenantId: String = ""
     @State private var attachedLeaseFileName: String? = nil
+    @State private var fieldErrors: [String: String] = [:]
 
     // MARK: - Environment
 
@@ -31,7 +32,7 @@ struct ListingFormView: View {
     @StateObject private var viewModel = ListingFormViewModel()
     @State private var showDocumentPicker = false
     @State private var selectedDocument: DocumentType?
-
+    
 
     // MARK: - Constants
 
@@ -67,6 +68,11 @@ struct ListingFormView: View {
                 TextField("Name", text: $listing.listingName)
                     .background(Color.white)
                     .foregroundStyle(.black)
+                if let error = fieldErrors["name"] {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
                 priceSection
                 addressSection
                 detailsSection
@@ -105,6 +111,41 @@ struct ListingFormView: View {
         }
     }
     
+    
+    private func validate() -> Bool {
+        var errors: [String: String] = [:]
+
+        if listing.listingName.isEmpty {
+            errors["name"] = "Name is required"
+        }
+
+        if listing.address.isEmpty {
+            errors["address"] = "Address is required"
+        }
+
+        if listing.price.isZero {
+            errors["price"] = "Price must be greater than 0"
+        }
+
+        if listing.bedrooms <= 0 {
+            errors["bedrooms"] = "Must have at least 1 bedroom"
+        }
+        
+        if listing.squareFeet == 0 {
+            errors["squareFeet"] = "Square footage must be greater than 0"
+        }
+
+        if listing.bathrooms <= 0 {
+            errors["bathrooms"] = "Must have at least 1 bathroom"
+        }
+
+        if selectedTenant != nil && attachedLeaseFileName == nil {
+            errors["lease"] = "A lease must be attached when a tenant is assigned"
+        }
+
+        fieldErrors = errors
+        return errors.isEmpty
+    }
     
     private var photoPicker: some View {
         PhotosPicker(
@@ -206,32 +247,68 @@ struct ListingFormView: View {
     }
     
     private var priceSection: some View {
-        TextField("Monthly Price", value: $listing.price, format: .currency(code: "CAD"))
-            .modifier(FormCard())
-            .keyboardType(.decimalPad)
+        VStack {
+            
+            TextField("Monthly Price", value: $listing.price, format: .currency(code: "CAD"))
+                .modifier(FormCard())
+                .keyboardType(.decimalPad)
+            if let error = fieldErrors["price"] {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+       
     }
     
     private var addressSection: some View {
-        TextField("Address", text: $listing.address)
-            .modifier(FormCard())
+        VStack{
+            TextField("Address", text: $listing.address)
+                .modifier(FormCard())
+            
+            if let error = fieldErrors["address"] {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
     }
     
     private var detailsSection: some View {
-        HStack {
-            StepperCard(title: "Bedrooms", value: $listing.bedrooms)
-            StepperCard(title: "Bathrooms", value: $listing.bathrooms)
+        VStack {
+            HStack {
+                StepperCard(title: "Bedrooms", value: $listing.bedrooms)
+                StepperCard(title: "Bathrooms", value: $listing.bathrooms)
+                
+            }
+            if let error = fieldErrors["bathrooms"]{
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else if let error = fieldErrors["bedrooms"] {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
         }
     }
     
     private var squareFeetSection: some View {
-        HStack {
-            Text("Square Feet")
-            Spacer()
-            TextField("0", value: $listing.squareFeet, format: .number)
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.trailing)
+        VStack {
+            HStack {
+                Text("Square Feet")
+                Spacer()
+                TextField("0", value: $listing.squareFeet, format: .number)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+            }
+            .modifier(FormCard())
+            if let error = fieldErrors["squareFeet"] {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
         }
-        .modifier(FormCard())
     }
     
     private var amenitiesSection: some View {
@@ -267,6 +344,11 @@ struct ListingFormView: View {
                     } label: {
                         Text("Attach Lease")
                             .foregroundStyle(.blue)
+                    }
+                    if let error = fieldErrors["lease"] {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
                 }
             } else {
@@ -373,6 +455,8 @@ struct ListingFormView: View {
             Spacer()
 
             Button(isEditing ? "Update" : "Publish") {
+                if !validate() { return }
+                    
                 viewModel.publish(
                     listing: listing,
                     selectedTenant: selectedTenant,
