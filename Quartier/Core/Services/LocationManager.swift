@@ -3,15 +3,7 @@
 //  Quartier
 //
 //  Created by Shaquille O Neil on 2026-03-10.
-//
 
-
-//
-//  LocationManager.swift
-//  MapNavigatorTransport
-//
-//  Created by Shaquille O Neil on 2026-02-17.
-//
 
 import Foundation
 import MapKit

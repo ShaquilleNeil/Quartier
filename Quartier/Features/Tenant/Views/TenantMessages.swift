@@ -89,6 +89,7 @@ struct TenantChatView: View {
         .onAppear {
             if let id = conversation.id {
                 viewModel.loadMessages(conversationId: id)
+                viewModel.markAsRead(conversationId: id, isLandlord: false)
             }
         }
         .onDisappear {

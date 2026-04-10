@@ -59,7 +59,8 @@ struct TenantRentedDash: View {
                     )
 
                     // MARK: Quick Actions Section
-                    QuickActionsGrid(listingId: auth.rentedListingId ?? "")
+                                        QuickActionsGrid(listingId: auth.rentedListingId ?? "")
+                                            .environmentObject(scheduleVM)
 
                     // MARK: Upcoming Event Section
                     VStack(alignment: .leading, spacing: 10) {
@@ -340,6 +341,7 @@ private struct RentStatusCard: View {
 private struct QuickActionsGrid: View {
     let listingId: String
     @EnvironmentObject private var firebase: FirebaseManager
+    @EnvironmentObject private var scheduleVM: ScheduleViewModel
 
     @State private var leaseURL: URL?
     @State private var showLease = false
@@ -390,6 +392,15 @@ private struct QuickActionsGrid: View {
 
                 NavigationLink(destination: TenantSchedule()) {
                     QuickActionCard(title: "Upcoming", icon: "calendar")
+                        .overlay(alignment: .topTrailing) {
+                            if scheduleVM.hasUnread {
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 14, height: 14)
+                                    .overlay(Circle().stroke(Color(.systemGray6), lineWidth: 2))
+                                    .offset(x: -8, y: 8)
+                            }
+                        }
                 }
                 .buttonStyle(.plain)
             }

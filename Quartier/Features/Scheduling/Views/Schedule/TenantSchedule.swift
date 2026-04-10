@@ -85,12 +85,13 @@ struct TenantSchedule: View {
             }
         }
         .navigationBarHidden(true)
-        // MARK: - Lifecycle Modifiers
-        .onAppear {
-            if let id = auth.rentedListingId {
-                scheduleVM.loadTenantEvents(listingId: id)
-            }
-        }
+                // MARK: - Lifecycle Modifiers
+                .onAppear {
+                    if let id = auth.rentedListingId {
+                        scheduleVM.loadTenantEvents(listingId: id)
+                    }
+                    scheduleVM.markAsViewed()
+                }
     }
     
     // MARK: - Helper Methods

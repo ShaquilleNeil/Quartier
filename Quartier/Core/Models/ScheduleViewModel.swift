@@ -20,11 +20,13 @@ struct ScheduleEvent: Identifiable, Codable, Hashable {
     var allDay: Bool
     var scopeAll: Bool
     var listingIds: [String]
+    var createdAt: Date?
 }
 
 @MainActor
 class ScheduleViewModel: ObservableObject {
     @Published var events: [ScheduleEvent] = []
+    @Published var hasUnread: Bool = false
     
     private let db = Firestore.firestore()
     private var listener: ListenerRegistration?
@@ -70,6 +72,9 @@ class ScheduleViewModel: ObservableObject {
             }
         }
         events.sort { $0.startAt < $1.startAt }
+
+        let lastViewed = UserDefaults.standard.object(forKey: "lastViewedSchedule") as? Date ?? Date(timeIntervalSince1970: 0)
+        self.hasUnread = events.contains { ($0.createdAt ?? $0.startAt) > lastViewed }
     }
     
     func saveEvent(id: String?, title: String, notes: String?, startAt: Date, endAt: Date, allDay: Bool, scopeAll: Bool, listingIds: [String]) {
@@ -78,9 +83,9 @@ class ScheduleViewModel: ObservableObject {
         let docRef = id != nil ? collection.document(id!) : collection.document()
         
         let event = ScheduleEvent(
-            landlordId: uid, title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            id: docRef.documentID, landlordId: uid, title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines), startAt: startAt, endAt: endAt,
-            allDay: allDay, scopeAll: scopeAll, listingIds: listingIds
+            allDay: allDay, scopeAll: scopeAll, listingIds: listingIds, createdAt: Date() // MARK: Record creation time
         )
         
         if let index = events.firstIndex(where: { $0.id == event.id }) {
@@ -97,6 +102,11 @@ class ScheduleViewModel: ObservableObject {
         guard let id = event.id else { return }
         withAnimation { events.removeAll { $0.id == id } }
         db.collection("schedules").document(id).delete()
+    }
+
+    func markAsViewed() {
+        UserDefaults.standard.set(Date(), forKey: "lastViewedSchedule")
+        self.hasUnread = false
     }
     
     func cleanup() {

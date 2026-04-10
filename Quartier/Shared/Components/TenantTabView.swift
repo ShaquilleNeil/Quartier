@@ -9,6 +9,8 @@ import Combine
 struct TenantTabView: View {
     @EnvironmentObject var authService: AuthService
     @State private var selectedTab: TenantTab = .home
+
+    @StateObject private var chatVM = ChatViewModel()
     
     var body: some View {
         TabView {
@@ -37,11 +39,15 @@ struct TenantTabView: View {
                 .tabItem {
                     Label("Messages", systemImage: "message.fill")
                 }
+            .badge(chatVM.totalUnread)
 
             TenantProfile()
                 .tabItem {
                     Label("Profile", systemImage: "person.fill")
                 }
+        }
+        .onAppear {
+            chatVM.loadConversations(isLandlord: false)
         }
     }
 }

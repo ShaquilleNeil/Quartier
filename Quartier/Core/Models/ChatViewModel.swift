@@ -1,3 +1,4 @@
+// MARK: - ChatViewModel.swift
 import SwiftUI
 import FirebaseFirestore
 import FirebaseAuth
@@ -12,6 +13,8 @@ struct Conversation: Identifiable, Codable, Hashable {
     var tenantName: String
     var lastMessageText: String
     var lastMessageAt: Date
+    var landlordUnreadCount: Int?
+    var tenantUnreadCount: Int?
 }
 
 struct ChatMessage: Identifiable, Codable, Hashable {
@@ -26,6 +29,7 @@ struct ChatMessage: Identifiable, Codable, Hashable {
 class ChatViewModel: ObservableObject {
     @Published var conversations: [Conversation] = []
     @Published var messages: [ChatMessage] = []
+    @Published var totalUnread: Int = 0
     
     private let db = Firestore.firestore()
     private var convosListener: ListenerRegistration?
@@ -41,6 +45,11 @@ class ChatViewModel: ObservableObject {
             .addSnapshotListener { snapshot, _ in
                 guard let documents = snapshot?.documents else { return }
                 self.conversations = documents.compactMap { try? $0.data(as: Conversation.self) }
+                
+                self.totalUnread = self.conversations.reduce(0) { sum, conv in
+                    let count = isLandlord ? (conv.landlordUnreadCount ?? 0) : (conv.tenantUnreadCount ?? 0)
+                    return sum + count
+                }
             }
     }
     
@@ -52,22 +61,6 @@ class ChatViewModel: ObservableObject {
                 self.messages = documents.compactMap { try? $0.data(as: ChatMessage.self) }
             }
     }
-    
-//    func sendMessage(conversationId: String, text: String) {
-//        guard let uid = Auth.auth().currentUser?.uid else { return }
-//        let msg = ChatMessage(conversationId: conversationId, senderId: uid, text: text, sentAt: Date())
-//        
-//        let docRef = db.collection("conversations").document(conversationId).collection("messages").document()
-//        try? docRef.setData(from: msg)
-//        
-//        db.collection("conversations").document(conversationId).updateData([
-//            "lastMessageText": text,
-//            "lastMessageAt": FieldValue.serverTimestamp()
-//        ])
-//    }
-    
-    
-    
     
     func sendMessage(
         conversationId: String,
@@ -86,6 +79,8 @@ class ChatViewModel: ObservableObject {
         let conversationRef = db.collection("conversations").document(conversationId)
         let messageRef = conversationRef.collection("messages").document()
 
+        let isLandlordSender = uid == landlordId
+
         let conversationData: [String: Any] = [
             "listingId": listingId,
             "listingAddress": listingAddress,
@@ -93,7 +88,9 @@ class ChatViewModel: ObservableObject {
             "landlordId": landlordId,
             "tenantName": tenantName,
             "lastMessageText": trimmed,
-            "lastMessageAt": FieldValue.serverTimestamp()
+            "lastMessageAt": FieldValue.serverTimestamp(),
+            "landlordUnreadCount": isLandlordSender ? 0 : FieldValue.increment(Int64(1)),
+            "tenantUnreadCount": isLandlordSender ? FieldValue.increment(Int64(1)) : 0
         ]
 
         let messageData: [String: Any] = [
@@ -112,6 +109,14 @@ class ChatViewModel: ObservableObject {
                 print("sendMessage error:", error.localizedDescription)
             }
         }
+    }
+    
+    // MARK: - Clear read badge for the tenant tab view
+    func markAsRead(conversationId: String, isLandlord: Bool) {
+        let fieldToClear = isLandlord ? "landlordUnreadCount" : "tenantUnreadCount"
+        db.collection("conversations").document(conversationId).updateData([
+            fieldToClear: 0
+        ])
     }
     
     func cleanupMessages() {
