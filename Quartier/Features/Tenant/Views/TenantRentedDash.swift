@@ -52,11 +52,12 @@ struct TenantRentedDash: View {
                     )
 
                     // MARK: Rent Status Section
-                    RentStatusCard(
-                        price: listing?.price ?? 0,
-                        address: listing?.address ?? auth.rentedAddress ?? "Your rental",
-                        imageURL: listing?.existingImageURLs.first
-                    )
+                                        RentStatusCard(
+                                            price: listing?.price ?? 0,
+                                            address: listing?.address ?? auth.rentedAddress ?? "Your rental",
+                                            imageURL: listing?.existingImageURLs.first,
+                                            listing: listing 
+                                        )
 
                     // MARK: Quick Actions Section
                                         QuickActionsGrid(listingId: auth.rentedListingId ?? "")
@@ -257,13 +258,21 @@ private struct RentStatusCard: View {
     let price: Double
     let address: String
     let imageURL: String?
+    let listing: Listing?
 
     @State private var isPresentingPayRent = false
+    @State private var isPaidThisMonth = false
 
     private var monthYear: String {
         let f = DateFormatter()
         f.dateFormat = "MMMM yyyy"
         return f.string(from: Date())
+    }
+    
+    // MARK: - to track month's payment
+    private var paymentKey: String {
+        let listingId = listing?.listingID.uuidString ?? "unknown"
+        return "rent_paid_\(listingId)_\(monthYear)"
     }
 
     private var priceFormatted: String {
@@ -273,6 +282,45 @@ private struct RentStatusCard: View {
         f.currencyCode = "CAD"
         return f.string(from: NSNumber(value: price)) ?? "$\(price)"
     }
+    
+    private var daysUntilRentDue: Int {
+        let dueDay = listing?.rentDueDay ?? 1
+        let calendar = Calendar.current
+        let now = Date()
+        
+        let components = calendar.dateComponents([.year, .month, .day], from: now)
+        guard let currentYear = components.year, let currentMonth = components.month, let currentDay = components.day else { return 0 }
+        
+        var dueComponents = DateComponents(year: currentYear, month: currentMonth, day: dueDay)
+        
+        if currentDay > dueDay {
+            dueComponents.month = currentMonth + 1
+        }
+        
+        guard let nextDueDate = calendar.date(from: dueComponents) else { return 0 }
+        
+        let diff = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: nextDueDate))
+        return diff.day ?? 0
+    }
+    
+    private var nextDueDateFormatted: String {
+            let dueDay = listing?.rentDueDay ?? 1
+            let calendar = Calendar.current
+            let now = Date()
+            
+            var components = calendar.dateComponents([.year, .month], from: now)
+            components.day = dueDay
+            
+            if isPaidThisMonth || (calendar.component(.day, from: now) > dueDay) {
+                components.month = (components.month ?? 0) + 1
+            }
+            
+            guard let nextDate = calendar.date(from: components) else { return "" }
+            
+            let f = DateFormatter()
+            f.dateFormat = "MMM d"
+            return f.string(from: nextDate)
+        }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -303,37 +351,70 @@ private struct RentStatusCard: View {
                     VStack(alignment: .trailing) {
                         Text(priceFormatted)
                             .font(.title2.bold())
-                            .foregroundColor(.red)
+                            .foregroundColor(.gray)
                         Text("Monthly rent")
                             .font(.caption)
                             .foregroundColor(.gray)
                     }
                 }
 
-                Text(address)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                HStack {
+                    Text(address)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                    
+                    Spacer()
+                    
+                    // MARK: - countdown of payment and next due date
+                                        if isPaidThisMonth {
+                                            VStack(alignment: .trailing, spacing: 2) {
+                                                Text("Paid for \(monthYear.components(separatedBy: " ").first ?? "")")
+                                                    .font(.caption.bold())
+                                                    .foregroundStyle(.green)
 
+                                                Text("Next due: \(nextDueDateFormatted)")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        } else if daysUntilRentDue == 0 {
+                        Text("Due Today!")
+                            .font(.caption.bold())
+                            .foregroundStyle(.red)
+                    } else {
+                        Text("Due in \(daysUntilRentDue) days")
+                            .font(.caption)
+                            .foregroundStyle(daysUntilRentDue <= 5 ? .red : .orange)
+                    }
+                }
+
+                // MARK: - Dynamic Payment Button
                 Button {
                     self.isPresentingPayRent = true
                 } label: {
-                    Text("Pay Now")
+                    Text(isPaidThisMonth ? "Paid" : "Pay Now")
                         .fontWeight(.bold)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.red)
+                        .background(isPaidThisMonth ? Color.green : Color.red)
                         .foregroundColor(.white)
                         .cornerRadius(12)
                 }
+                .disabled(isPaidThisMonth)
             }
             .padding()
         }
         .background(.white)
         .cornerRadius(16)
         .shadow(radius: 4)
+        .onAppear {
+            isPaidThisMonth = UserDefaults.standard.bool(forKey: paymentKey)
+        }
         .sheet(isPresented: $isPresentingPayRent) {
-            Text("Pay Rent View")
+            PayRentView(amount: price) {
+                UserDefaults.standard.set(true, forKey: paymentKey)
+                isPaidThisMonth = true
+            }
         }
     }
 }
@@ -456,5 +537,102 @@ private struct NoticeCard: View {
         .frame(width: 260, alignment: .leading)
         .background(Color(.systemBackground))
         .cornerRadius(16)
+    }
+}
+
+// MARK: - Pay Rent View
+private struct PayRentView: View {
+    let amount: Double
+    let onPaymentSuccess: () -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var cardName = ""
+    @State private var cardNumber = ""
+    @State private var expiry = ""
+    @State private var cvv = ""
+    @State private var isProcessing = false
+    
+    private var formattedAmount: String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "CAD"
+        return f.string(from: NSNumber(value: amount)) ?? "$\(amount)"
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    VStack(spacing: 8) {
+                        Text("Amount Due")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text(formattedAmount)
+                            .font(.system(size: 36, weight: .bold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                }
+                
+                Section("Card Details") {
+                    TextField("Name on Card", text: $cardName)
+                        .textContentType(.name)
+                    
+                    TextField("Card Number", text: $cardNumber)
+                        .keyboardType(.numberPad)
+                    
+                    HStack {
+                        TextField("MM/YY", text: $expiry)
+                            .keyboardType(.numberPad)
+                        Divider()
+                        TextField("CVV", text: $cvv)
+                            .keyboardType(.numberPad)
+                    }
+                }
+            }
+            .navigationTitle("Pay Rent")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(isProcessing)
+                }
+            }
+
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    processPayment()
+                } label: {
+                    if isProcessing {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("Pay \(formattedAmount)")
+                            .fontWeight(.bold)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(isFormValid ? Color.blue : Color.gray.opacity(0.5))
+                .foregroundColor(.white)
+                .cornerRadius(14)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                .disabled(!isFormValid || isProcessing)
+            }
+        }
+    }
+    
+    private var isFormValid: Bool {
+        !cardName.isEmpty && !cardNumber.isEmpty && !expiry.isEmpty && !cvv.isEmpty
+    }
+    
+    private func processPayment() {
+        isProcessing = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            isProcessing = false
+            onPaymentSuccess()
+            dismiss()
+        }
     }
 }

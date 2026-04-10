@@ -100,7 +100,8 @@ class ListingFormViewModel: ObservableObject {
                         rules: updatedListing.rules,
                         imageURLs: finalURLs,
                         address: updatedListing.address,
-                        isRented: !newTenantId.isEmpty
+                        isRented: !newTenantId.isEmpty,
+                        rentDueDay: updatedListing.rentDueDay
                     )
 
                     // MARK: - Tenant Sync

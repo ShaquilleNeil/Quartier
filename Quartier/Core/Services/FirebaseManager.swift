@@ -280,6 +280,7 @@ class FirebaseManager: ObservableObject {
             listing.existingImageURLs = data["images"] as? [String] ?? []
             listing.createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
             listing.updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
+            listing.rentDueDay = data["rentDueDay"] as? Int ?? 1
             
             if let location = data["location"] as? GeoPoint {
                 listing.latitude = location.latitude
@@ -316,6 +317,7 @@ class FirebaseManager: ObservableObject {
            imageURLs: [String],
            address: String,
            isRented: Bool,
+           rentDueDay: Int,
            completion: ((Result<Void, Error>) -> Void)? = nil
        ) {
            
@@ -335,6 +337,7 @@ class FirebaseManager: ObservableObject {
                "address": address,
                "location": GeoPoint(latitude: latitude, longitude: longitude),
                "isRented": isRented,
+               "rentDueDay": rentDueDay,
                "updatedAt": FieldValue.serverTimestamp()
            ]
            
@@ -399,6 +402,7 @@ class FirebaseManager: ObservableObject {
                 listing.listingID = UUID(uuidString: doc.documentID) ?? UUID()
                 listing.address = data["address"] as? String ?? ""
                 listing.existingImageURLs = data["images"] as? [String] ?? []
+                listing.rentDueDay = data["rentDueDay"] as? Int ?? 1
 
                 DispatchQueue.main.async {
                     completion(listing)

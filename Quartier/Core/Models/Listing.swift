@@ -28,6 +28,7 @@ struct Listing: Identifiable, Codable {
 
     var status: ListingStatus = .draft
     var isRented: Bool = false
+    var rentDueDay: Int = 1
 
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
@@ -67,6 +68,7 @@ struct Listing: Identifiable, Codable {
         case longitude
         case status
         case isRented
+        case rentDueDay
         case existingImageURLs
         case createdAt
         case updatedAt

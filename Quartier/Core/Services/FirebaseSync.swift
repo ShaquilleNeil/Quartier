@@ -187,6 +187,7 @@ final class FirebaseSync {
         item.rules = data["rules"] as? String ?? ""
         item.address = data["address"] as? String ?? ""
         item.isRented = FirebaseManager.firestoreBool(data["isRented"])
+        item.rentDueDay = data["rentDueDay"] as? Int16 ?? 1
 
         if let updatedAt = remoteUpdatedAt {
             item.updatedAt = updatedAt
@@ -236,6 +237,7 @@ final class FirebaseSync {
             "rules": listing.rules ?? "",
             "address": listing.address ?? "",
             "isRented": listing.isRented,
+            "rentDueDay": listing.rentDueDay,
             "updatedAt": FieldValue.serverTimestamp()
         ]
         

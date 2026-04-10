@@ -139,9 +139,10 @@ struct ListingFormView: View {
             errors["bathrooms"] = "Must have at least 1 bathroom"
         }
 
-        if selectedTenant != nil && attachedLeaseFileName == nil {
-            errors["lease"] = "A lease must be attached when a tenant is assigned"
-        }
+        //commented for testing without lease
+//        if selectedTenant != nil && attachedLeaseFileName == nil {
+//            errors["lease"] = "A lease must be attached when a tenant is assigned"
+//        }
 
         fieldErrors = errors
         return errors.isEmpty
@@ -328,57 +329,81 @@ struct ListingFormView: View {
     
     
     private var tenantSection: some View {
-        VStack(spacing: 12) {
-            Text("Assign To a Tenant")
+            VStack(spacing: 12) {
+                Text("Assign To a Tenant")
 
-            if let tenant = selectedTenant {
-                selectedTenantChip(tenant)
-                Spacer()
-
-                if let fileName = attachedLeaseFileName {
-                    leaseChip(fileName: fileName)
-                } else {
-                    Button {
-                        selectedDocument = .lease
-                        showDocumentPicker = true
-                    } label: {
-                        Text("Attach Lease")
+                if let tenant = selectedTenant {
+                    selectedTenantChip(tenant)
+                    
+                    HStack {
+                        Image(systemName: "calendar.badge.clock")
                             .foregroundStyle(.blue)
+                        
+                        Text("Rent Due on Day:")
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                        
+                        Spacer()
+                        
+                        Picker("Day", selection: $listing.rentDueDay) {
+                            ForEach(1...31, id: \.self) { day in
+                                Text("\(day)").tag(day)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .tint(.blue)
                     }
-                    if let error = fieldErrors["lease"] {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+                    .background(Color.blue.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                    Spacer()
+
+                    if let fileName = attachedLeaseFileName {
+                        leaseChip(fileName: fileName)
+                    } else {
+                        Button {
+                            selectedDocument = .lease
+                            showDocumentPicker = true
+                        } label: {
+                            Text("Attach Lease")
+                                .foregroundStyle(.blue)
+                        }
+                        if let error = fieldErrors["lease"] {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
                     }
+                } else {
+                    TenantSearchField(
+                        selectedTenant: $selectedTenant,
+                        tenants: tenants
+                    )
                 }
-            } else {
-                TenantSearchField(
-                    selectedTenant: $selectedTenant,
-                    tenants: tenants
-                )
+            }
+            .fileImporter(
+                isPresented: $showDocumentPicker,
+                allowedContentTypes: [.pdf, .image],
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    guard let fileURL = urls.first,
+                          let type = selectedDocument else { return }
+                    
+                    guard fileURL.startAccessingSecurityScopedResource() else { return }
+                        defer { fileURL.stopAccessingSecurityScopedResource() }
+
+                    attachedLeaseFileName = fileURL.lastPathComponent
+                    firebase.uploadLeaseDocument(fileURL: fileURL, type: type, listingId: listing.id.uuidString)
+
+                case .failure(let error):
+                    print("Error:", error)
+                }
             }
         }
-        .fileImporter(
-            isPresented: $showDocumentPicker,
-            allowedContentTypes: [.pdf, .image],
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case .success(let urls):
-                guard let fileURL = urls.first,
-                      let type = selectedDocument else { return }
-                
-                guard fileURL.startAccessingSecurityScopedResource() else { return }
-                   defer { fileURL.stopAccessingSecurityScopedResource() }
-
-                attachedLeaseFileName = fileURL.lastPathComponent
-                firebase.uploadLeaseDocument(fileURL: fileURL, type: type, listingId: listing.id.uuidString)
-
-            case .failure(let error):
-                print("Error:", error)
-            }
-        }
-    }
     
     
     
