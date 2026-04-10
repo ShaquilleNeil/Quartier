@@ -22,6 +22,9 @@ struct LandlordProfile: View {
 private struct LandlordProfileView: View {
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
     @State private var isLandlordMode = true
+    private var completedCount: Int {
+        DocumentType.allCases.filter { isUploaded($0) }.count
+    }
     
     var userEmail: String
     var onLogout: () -> Void
@@ -65,7 +68,7 @@ private struct LandlordProfileView: View {
                             Circle()
                                 .fill(.green)
                                 .frame(width: 22, height: 22)
-                                .overlay(Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white))
+                                .overlay(Image(systemName: completedCount < 3 ? "xmark" : "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white))
                                 .offset(x: 2, y: 2)
                         }
 
@@ -78,8 +81,8 @@ private struct LandlordProfileView: View {
                             .foregroundStyle(.secondary)
 
                         HStack(spacing: 10) {
-                            chip("ID Verified", fg: .green)
-                            chip("Ownership Verified", fg: primary)
+                            chip(completedCount < 3 ? "Not Verified" : "ID Verified", fg: .green)
+                            
                         }
 
                         Button {} label: {
@@ -127,7 +130,7 @@ private struct LandlordProfileView: View {
                             Text("My Documents")
                                 .font(.system(size: 18, weight: .bold))
                             Spacer()
-                            Text("2/3 COMPLETED")
+                            Text("\(completedCount) COMPLETED")
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(primary)
                                 .padding(.horizontal, 10)

@@ -20,6 +20,7 @@ struct MaintenanceForm: View {
     @EnvironmentObject private var firebase: FirebaseManager
     @EnvironmentObject private var authService: AuthService
     @Environment(\.dismiss) var dismiss
+    @State private var fieldErrors: [String: String] = [:]
 
     var body: some View {
         VStack {
@@ -27,6 +28,11 @@ struct MaintenanceForm: View {
                 Section(header: Text("Maintenance Request Form")) {
                     DatePicker("Date", selection: $date, displayedComponents: .date)
                     TextField("Description", text: $description)
+                    if let error = fieldErrors["description"] {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
                     photoPicker
 
                     if let error = submitError {
@@ -45,6 +51,7 @@ struct MaintenanceForm: View {
     }
 
     private func submitRequest() async {
+        if !validation() { return }
         guard let uid = Auth.auth().currentUser?.uid else {
             submitError = "User not found."
             return
@@ -113,6 +120,17 @@ struct MaintenanceForm: View {
                 }
             }
         }
+    }
+    
+    func validation() -> Bool{
+        var errors: [String: String] = [:]
+        
+        if description.isEmpty {
+            errors["description"] = "Please enter a description."
+        }
+        
+        fieldErrors = errors
+        return errors.isEmpty
     }
 }
 

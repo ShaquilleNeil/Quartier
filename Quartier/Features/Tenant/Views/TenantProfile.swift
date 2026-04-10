@@ -22,6 +22,9 @@ struct TenantProfile: View {
     @State private var selectedDocument: DocumentType?
     @State private var showOptions = false
     @State private var profileEdit = false
+    private var completedCount: Int {
+        DocumentType.allCases.filter { isUploaded($0) }.count
+    }
 
     // MARK: - Main Body
     
@@ -36,7 +39,8 @@ struct TenantProfile: View {
                     ProfileHeaderView(
                         userEmail: authService.userSession?.email ?? "Tenant User",
                         profileURL: firebaseManager.currentUser?.profilePic,
-                        name: firebaseManager.currentUser?.name ?? "User"
+                        name: firebaseManager.currentUser?.name ?? "User",
+                        completedCount: completedCount
                     )
 
                     // MARK: Edit Button
@@ -58,15 +62,18 @@ struct TenantProfile: View {
                     }
 
                     // MARK: Documents
-                    DocumentsSection(isUploaded: isUploaded) { type in
-                        selectedDocument = type
-                        
-                        if isUploaded(type) {
-                            showOptions = true
-                        } else {
-                            showDocumentPicker = true
-                        }
-                    }
+                    DocumentsSection(
+                        isUploaded: isUploaded,
+                        onSelect: { type in
+                            selectedDocument = type
+                            if isUploaded(type) {
+                                showOptions = true
+                            } else {
+                                showDocumentPicker = true
+                            }
+                        },
+                        completedCount: completedCount
+                    )
                     
                     Button("Log Out") {
                         authService.signOut()
@@ -143,6 +150,7 @@ struct ProfileHeaderView: View {
     let userEmail: String
     let profileURL: String?
     let name: String
+    let completedCount: Int
 
     var body: some View {
         VStack(spacing: 12) {
@@ -179,10 +187,10 @@ struct ProfileHeaderView: View {
 
                 // verification badge
                 Circle()
-                    .fill(Color.blue)
+                    .fill(completedCount < 3 ? Color.red : Color.green)
                     .frame(width: 32, height: 32)
                     .overlay(
-                        Image(systemName: "checkmark.seal.fill")
+                        Image(systemName: completedCount < 3 ? "xmark.seal.fill" : "checkmark.seal.fill")
                             .foregroundColor(.white)
                             .font(.caption)
                     )
@@ -201,8 +209,8 @@ struct ProfileHeaderView: View {
                 .foregroundColor(.secondary)
 
             HStack(spacing: 12) {
-                Badge(text: "ID Verified")
-                Badge(text: "Income Verified")
+                Badge(text: completedCount < 3 ? "Not Verified" : "ID Verified", completedCount: completedCount)
+                
             }
         }
     }
@@ -210,11 +218,12 @@ struct ProfileHeaderView: View {
 
 private struct Badge: View {
     let text: String
+    let completedCount: Int
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.blue)
+            Image(systemName: completedCount < 3 ? "xmark.circle.fill" :"checkmark.circle.fill")
+                .foregroundColor(completedCount < 3 ? .red : .green)
 
             Text(text)
                 .font(.caption)
@@ -270,14 +279,13 @@ private struct SearchPreferencesCard: View {
 private struct DocumentsSection: View {
     let isUploaded: (DocumentType) -> Bool
     let onSelect: (DocumentType) -> Void
+    let completedCount: Int
 
     private func status(for type: DocumentType) -> DocumentStatus {
         isUploaded(type) ? .pending : .none
     }
 
-    private var completedCount: Int {
-        DocumentType.allCases.filter { isUploaded($0) }.count
-    }
+   
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {

@@ -22,6 +22,9 @@ struct LandlordProfile: View {
     @State private var showDocumentPicker = false
     @State private var selectedDocument: DocumentType?
     @State private var showOptions = false
+    private var completedCount: Int {
+        DocumentType.allCases.filter { isUploaded($0) }.count
+    }
 
     var body: some View {
         NavigationStack {
@@ -32,7 +35,9 @@ struct LandlordProfile: View {
                     ProfileHeaderView(
                         userEmail: publicView == true ? (landlordUser?.email ?? "") : (authService.userSession?.email ?? ""),
                         profileURL: publicView == true ? landlordUser?.profilePic : firebaseManager.currentUser?.profilePic,
-                        name: publicView == true ? (landlordUser?.name ?? "Landlord") : (firebaseManager.currentUser?.name ?? "User")
+                        name: publicView == true ? (landlordUser?.name ?? "Landlord") : (firebaseManager.currentUser?.name ?? "User"),
+                        completedCount: completedCount,
+                        
                     )
                     if(publicView == false){
                         Button {
@@ -58,7 +63,8 @@ struct LandlordProfile: View {
                             if isUploaded(type) { showOptions = true } else { showDocumentPicker = true }
                         },
                         publicView: publicView,
-                        landlordId: publicView == true ? landlordId : (firebaseManager.currentUser?.id ?? "")
+                        landlordId: publicView == true ? landlordId : (firebaseManager.currentUser?.id ?? ""),
+                        completedCount: completedCount
                     )
 
                     if(publicView == false){
@@ -132,7 +138,8 @@ private struct LandlordDocumentsSection: View {
     let isUploaded: (DocumentType) -> Bool
     let onSelect: (DocumentType) -> Void
     var publicView: Bool?
-    let landlordId: String  // ← needed to fetch listings for a specific landlord
+    let landlordId: String
+    var completedCount: Int
 
     @EnvironmentObject private var firebaseManager: FirebaseManager
 
@@ -140,9 +147,7 @@ private struct LandlordDocumentsSection: View {
         isUploaded(type) ? .pending : .none
     }
 
-    private var completedCount: Int {
-        DocumentType.allCases.filter { isUploaded($0) }.count
-    }
+   
 
     private var landlordListings: [Listing] {
         firebaseManager.firebaseListings.filter { $0.landLordId == landlordId }
