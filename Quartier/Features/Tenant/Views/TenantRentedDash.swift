@@ -284,29 +284,39 @@ private struct RentStatusCard: View {
     }
     
     private var daysUntilRentDue: Int {
-        let dueDay = listing?.rentDueDay ?? 1
-        let calendar = Calendar.current
-        let now = Date()
-        
-        let components = calendar.dateComponents([.year, .month, .day], from: now)
-        guard let currentYear = components.year, let currentMonth = components.month, let currentDay = components.day else { return 0 }
-        
-        var dueComponents = DateComponents(year: currentYear, month: currentMonth, day: dueDay)
-        
-        if currentDay > dueDay {
-            dueComponents.month = currentMonth + 1
-        }
-        
-        guard let nextDueDate = calendar.date(from: dueComponents) else { return 0 }
-        
-        let diff = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: nextDueDate))
-        return diff.day ?? 0
-    }
-    
-    private var nextDueDateFormatted: String {
-            let dueDay = listing?.rentDueDay ?? 1
+            let savedDueDay = listing?.rentDueDay ?? 1
             let calendar = Calendar.current
             let now = Date()
+            
+            
+            let maxDaysInMonth = calendar.range(of: .day, in: .month, for: now)?.count ?? 31
+            let dueDay = min(savedDueDay, maxDaysInMonth)
+            
+            
+            let components = calendar.dateComponents([.year, .month, .day], from: now)
+            guard let currentYear = components.year, let currentMonth = components.month, let currentDay = components.day else { return 0 }
+            
+            var dueComponents = DateComponents(year: currentYear, month: currentMonth, day: dueDay)
+            
+            if currentDay > dueDay {
+                dueComponents.month = currentMonth + 1
+            }
+            
+            guard let nextDueDate = calendar.date(from: dueComponents) else { return 0 }
+            
+            let diff = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: nextDueDate))
+            return diff.day ?? 0
+        }
+    
+    private var nextDueDateFormatted: String {
+            let savedDueDay = listing?.rentDueDay ?? 1
+            let calendar = Calendar.current
+            let now = Date()
+            
+           
+            let maxDaysInMonth = calendar.range(of: .day, in: .month, for: now)?.count ?? 31
+            let dueDay = min(savedDueDay, maxDaysInMonth)
+            
             
             var components = calendar.dateComponents([.year, .month], from: now)
             components.day = dueDay
