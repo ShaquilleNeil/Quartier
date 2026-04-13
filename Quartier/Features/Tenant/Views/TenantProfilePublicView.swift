@@ -1,1 +1,229 @@
-////  TenantProfilePublicView.swift//  Quartier//import SwiftUIimport FirebaseFirestoreimport SDWebImageSwiftUIstruct TenantProfilePublicView: View {    let tenantId: String        @State private var tenantName: String = "Loading..."    @State private var tenantEmail: String = ""    @State private var profilePicURL: String? = nil    @State private var uploadedDocuments: [UserDocument] = []    @State private var isLoadingDocs = true        @Environment(\.openURL) var openURL        private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)        var body: some View {        ZStack {            bg.ignoresSafeArea()            ScrollView {                VStack(spacing: 14) {                    // Header card                    VStack(spacing: 12) {                        ZStack(alignment: .bottomTrailing) {                            Circle()                                .fill(primary.opacity(0.15))                                .frame(width: 92, height: 92)                                .overlay(                                    Group {                                        if let urlString = profilePicURL, let url = URL(string: urlString) {                                            WebImage(url: url)                                                .resizable()                                                .indicator(.activity)                                                .scaledToFill()                                                .clipShape(Circle())                                        } else {                                            Image(systemName: "person.fill")                                                .font(.system(size: 38, weight: .semibold))                                                .foregroundStyle(primary)                                        }                                    }                                )                                .overlay(Circle().stroke(Color.white.opacity(0.7), lineWidth: 3))                            // Only show verified check if they have all 3 docs!                            if uploadedDocuments.count >= 3 {                                Circle()                                    .fill(.green)                                    .frame(width: 22, height: 22)                                    .overlay(Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white))                                    .offset(x: 2, y: 2)                            }                        }                        Text(tenantName)                            .font(.system(size: 20, weight: .bold))                        Text(tenantEmail)                            .font(.system(size: 14))                            .foregroundStyle(.secondary)                        HStack(spacing: 10) {                            if uploadedDocuments.count >= 3 {                                chip("Verified Tenant", fg: .green)                            } else {                                chip("Pending Verification", fg: .orange)                            }                        }                    }                    .padding(16)                    .frame(maxWidth: .infinity)                    .background(RoundedRectangle(cornerRadius: 18).fill(cardBg))                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(border, lineWidth: 1))                    .padding(.horizontal, 16)                    VStack(alignment: .leading, spacing: 10) {                        HStack {                            Text("Uploaded Documents")                                .font(.system(size: 18, weight: .bold))                            Spacer()                            Text("\(uploadedDocuments.count)/3")                                .font(.caption.bold())                                .foregroundStyle(primary)                        }                        if isLoadingDocs {                            ProgressView()                                .frame(maxWidth: .infinity)                                .padding()                        } else if uploadedDocuments.isEmpty {                            Text("This tenant hasn't uploaded any documents yet.")                                .font(.subheadline)                                .foregroundStyle(.secondary)                                .padding(.top, 4)                        } else {                            ForEach(uploadedDocuments, id: \.type) { doc in                                Button {                                    if let url = URL(string: doc.url) {                                        openURL(url) // Opens the PDF/Image!                                    }                                } label: {                                    docRow(                                        title: titleFor(docType: doc.type),                                        status: "Tap to view",                                        statusColor: primary,                                        rightIcon: "arrow.up.forward.app.fill"                                    )                                }                                .buttonStyle(.plain)                            }                        }                    }                    .padding(14)                    .background(RoundedRectangle(cornerRadius: 18).fill(cardBg))                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(border, lineWidth: 1))                    .padding(.horizontal, 16)                    Spacer(minLength: 20)                }                .padding(.top, 20)            }        }        .navigationTitle("Tenant Profile")        .navigationBarTitleDisplayMode(.inline)        .task {            await fetchTenantData()            await fetchTenantDocuments()        }    }        private func fetchTenantData() async {        do {            let snapshot = try await Firestore.firestore().collection("users").document(tenantId).getDocument()            if let data = snapshot.data() {                let fetchedEmail = data["email"] as? String ?? ""                self.tenantEmail = fetchedEmail                self.tenantName = data["name"] as? String ?? fetchedEmail.components(separatedBy: "@").first ?? "Tenant"                self.profilePicURL = data["profilePic"] as? String            }        } catch {            print("Error fetching tenant profile: \(error)")            self.tenantName = "Unknown Tenant"        }    }        private func fetchTenantDocuments() async {        do {            let snapshot = try await Firestore.firestore()                .collection("users")                .document(tenantId)                .collection("documents")                .getDocuments()                        let fetched = snapshot.documents.compactMap { doc -> UserDocument? in                let data = doc.data()                guard let type = data["type"] as? String,                      let url = data["url"] as? String,                      let status = data["status"] as? String else { return nil }                return UserDocument(type: type, url: url, status: status)            }                        await MainActor.run {                self.uploadedDocuments = fetched                self.isLoadingDocs = false            }        } catch {            print("Error fetching tenant docs: \(error)")            await MainActor.run { self.isLoadingDocs = false }        }    }        private func titleFor(docType: String) -> String {        switch docType.lowercased() {        case "id": return "Government ID"        case "paystub": return "Recent Paystubs"        case "tax": return "Tax Returns (W2)"        default: return docType.capitalized        }    }    private func chip(_ text: String, fg: Color) -> some View {        Text(text)            .font(.system(size: 11, weight: .bold))            .foregroundStyle(fg)            .padding(.horizontal, 10)            .padding(.vertical, 6)            .background(Capsule().fill(fg.opacity(0.12)))    }    private func docRow(title: String, status: String, statusColor: Color, rightIcon: String) -> some View {        HStack(spacing: 12) {            RoundedRectangle(cornerRadius: 12)                .fill(primary.opacity(0.10))                .frame(width: 42, height: 42)                .overlay(Image(systemName: "doc.text").foregroundStyle(primary))            VStack(alignment: .leading, spacing: 3) {                Text(title).font(.system(size: 14, weight: .semibold))                Text(status).font(.system(size: 11)).foregroundStyle(statusColor)            }            Spacer()            Image(systemName: rightIcon)                .foregroundStyle(statusColor)                .font(.system(size: 18, weight: .semibold))        }        .padding(.vertical, 6)    }    private var bg: Color {        Color(uiColor: UIColor { tc in            tc.userInterfaceStyle == .dark            ? UIColor(red: 0.06, green: 0.10, blue: 0.13, alpha: 1.0)            : UIColor(red: 0.96, green: 0.97, blue: 0.97, alpha: 1.0)        })    }    private var cardBg: Color { Color(uiColor: .secondarySystemBackground) }    private var border: Color { Color.primary.opacity(0.08) }}
+//
+//  TenantProfilePublicView.swift
+//  Quartier
+//
+
+import SwiftUI
+import FirebaseFirestore
+import SDWebImageSwiftUI
+
+struct TenantProfilePublicView: View {
+    let tenantId: String
+    
+    @State private var tenantName: String = "Loading..."
+    @State private var tenantEmail: String = ""
+    @State private var profilePicURL: String? = nil
+
+    @State private var uploadedDocuments: [UserDocument] = []
+    @State private var isLoadingDocs = true
+    
+    @Environment(\.openURL) var openURL
+    
+    private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
+    
+    var body: some View {
+        ZStack {
+            bg.ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 14) {
+                    // Header card
+                    VStack(spacing: 12) {
+                        ZStack(alignment: .bottomTrailing) {
+                            Circle()
+                                .fill(primary.opacity(0.15))
+                                .frame(width: 92, height: 92)
+                                .overlay(
+                                    Group {
+                                        if let urlString = profilePicURL, let url = URL(string: urlString) {
+                                            WebImage(url: url)
+                                                .resizable()
+                                                .indicator(.activity)
+                                                .scaledToFill()
+                                                .clipShape(Circle())
+                                        } else {
+                                            Image(systemName: "person.fill")
+                                                .font(.system(size: 38, weight: .semibold))
+                                                .foregroundStyle(primary)
+                                        }
+                                    }
+                                )
+                                .overlay(Circle().stroke(Color.white.opacity(0.7), lineWidth: 3))
+
+                            // verified check if they have 3 docuemnts
+                            if uploadedDocuments.count >= 3 {
+                                Circle()
+                                    .fill(.green)
+                                    .frame(width: 22, height: 22)
+                                    .overlay(Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white))
+                                    .offset(x: 2, y: 2)
+                            }
+                        }
+
+                        Text(tenantName)
+                            .font(.system(size: 20, weight: .bold))
+
+                        Text(tenantEmail)
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 10) {
+                            if uploadedDocuments.count >= 3 {
+                                chip("Verified Tenant", fg: .green)
+                            } else {
+                                chip("Pending Verification", fg: .orange)
+                            }
+                        }
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(cardBg))
+                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(border, lineWidth: 1))
+                    .padding(.horizontal, 16)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Uploaded Documents")
+                                .font(.system(size: 18, weight: .bold))
+                            Spacer()
+                            Text("\(uploadedDocuments.count)/3")
+                                .font(.caption.bold())
+                                .foregroundStyle(primary)
+                        }
+
+                        if isLoadingDocs {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                        } else if uploadedDocuments.isEmpty {
+                            Text("This tenant hasn't uploaded any documents yet.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 4)
+                        } else {
+                            ForEach(uploadedDocuments, id: \.type) { doc in
+                                Button {
+                                    if let url = URL(string: doc.url) {
+                                        openURL(url)
+                                    }
+                                } label: {
+                                    docRow(
+                                        title: titleFor(docType: doc.type),
+                                        status: "Tap to view",
+                                        statusColor: primary,
+                                        rightIcon: "arrow.up.forward.app.fill"
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 18).fill(cardBg))
+                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(border, lineWidth: 1))
+                    .padding(.horizontal, 16)
+
+                    Spacer(minLength: 20)
+                }
+                .padding(.top, 20)
+            }
+        }
+        .navigationTitle("Tenant Profile")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await fetchTenantData()
+            await fetchTenantDocuments()
+        }
+    }
+    
+    private func fetchTenantData() async {
+        do {
+            let snapshot = try await Firestore.firestore().collection("users").document(tenantId).getDocument()
+            if let data = snapshot.data() {
+                let fetchedEmail = data["email"] as? String ?? ""
+                self.tenantEmail = fetchedEmail
+                self.tenantName = data["name"] as? String ?? fetchedEmail.components(separatedBy: "@").first ?? "Tenant"
+                self.profilePicURL = data["profilePic"] as? String
+            }
+        } catch {
+            print("Error fetching tenant profile: \(error)")
+            self.tenantName = "Unknown Tenant"
+        }
+    }
+    
+    private func fetchTenantDocuments() async {
+        do {
+            let snapshot = try await Firestore.firestore()
+                .collection("users")
+                .document(tenantId)
+                .collection("documents")
+                .getDocuments()
+            
+            let fetched = snapshot.documents.compactMap { doc -> UserDocument? in
+                let data = doc.data()
+                guard let type = data["type"] as? String,
+                      let url = data["url"] as? String,
+                      let status = data["status"] as? String else { return nil }
+                return UserDocument(type: type, url: url, status: status)
+            }
+            
+            await MainActor.run {
+                self.uploadedDocuments = fetched
+                self.isLoadingDocs = false
+            }
+        } catch {
+            print("Error fetching tenant docs: \(error)")
+            await MainActor.run { self.isLoadingDocs = false }
+        }
+    }
+    
+    private func titleFor(docType: String) -> String {
+        switch docType.lowercased() {
+        case "id": return "Government ID"
+        case "paystub": return "Recent Paystubs"
+        case "tax": return "Tax Returns (W2)"
+        default: return docType.capitalized
+        }
+    }
+
+    private func chip(_ text: String, fg: Color) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(fg)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(fg.opacity(0.12)))
+    }
+
+    private func docRow(title: String, status: String, statusColor: Color, rightIcon: String) -> some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(primary.opacity(0.10))
+                .frame(width: 42, height: 42)
+                .overlay(Image(systemName: "doc.text").foregroundStyle(primary))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 14, weight: .semibold))
+                Text(status).font(.system(size: 11)).foregroundStyle(statusColor)
+            }
+
+            Spacer()
+
+            Image(systemName: rightIcon)
+                .foregroundStyle(statusColor)
+                .font(.system(size: 18, weight: .semibold))
+        }
+        .padding(.vertical, 6)
+    }
+
+    private var bg: Color {
+        Color(uiColor: UIColor { tc in
+            tc.userInterfaceStyle == .dark
+            ? UIColor(red: 0.06, green: 0.10, blue: 0.13, alpha: 1.0)
+            : UIColor(red: 0.96, green: 0.97, blue: 0.97, alpha: 1.0)
+        })
+    }
+
+    private var cardBg: Color { Color(uiColor: .secondarySystemBackground) }
+    private var border: Color { Color.primary.opacity(0.08) }
+}
