@@ -1,0 +1,1 @@
+////  FormCard.swift//  Quartier////  Created by user285973 on 4/13/26.//import SwiftUI struct FormCard: ViewModifier {        func body(content: Content) -> some View {            content                .padding()                .background(.white)                .cornerRadius(14)        }    }

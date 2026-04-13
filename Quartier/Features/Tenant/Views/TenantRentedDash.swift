@@ -473,8 +473,6 @@ private struct QuickActionsGrid: View {
                 } message: {
                     Text("Your landlord hasn't uploaded a lease yet.")
                 }
-
-                QuickActionCard(title: "Emergency", icon: "exclamationmark.triangle.fill")
                 
                 NavigationLink(destination: MaintenanceForm()) {
                     QuickActionCard(title: "Maintenance", icon: "wrench.fill")

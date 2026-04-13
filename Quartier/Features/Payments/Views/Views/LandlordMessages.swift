@@ -82,6 +82,14 @@ struct LandlordChatView: View {
         }
         .navigationTitle(conversation.tenantName.isEmpty ? "Tenant" : conversation.tenantName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink(destination: TenantProfilePublicView(tenantId: conversation.tenantId)) {
+                            HStack(spacing: 4) {
+                                Text("Profile")
+                                    .font(.subheadline.bold())
+                                Image(systemName: "person.crop.circle")
+                            }
         .onAppear {
             if let id = conversation.id {
                 viewModel.loadMessages(conversationId: id)

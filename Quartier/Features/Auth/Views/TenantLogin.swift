@@ -15,6 +15,8 @@ struct TenantLogin: View {
     @State private var password = ""
     @State private var isPasswordVisible = false
     @State private var fieldErrors: [String: String] = [:]
+    @State private var showAlert = false
+    @State private var alertMessage = ""
     
     var body: some View {
         NavigationStack {
@@ -106,7 +108,21 @@ struct TenantLogin: View {
                         HStack {
                             Spacer()
                             Button("Forgot Password?") {
-                                // todo
+                                let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard !trimmedEmail.isEmpty else {
+                                    alertMessage = "Please enter your email address in the field above first."
+                                    showAlert = true
+                                    return
+                                }
+                                
+                                authService.resetPassword(email: trimmedEmail) { success, errorMsg in
+                                    if success {
+                                        alertMessage = "A password reset link has been sent to \(trimmedEmail)."
+                                    } else {
+                                        alertMessage = errorMsg ?? "Failed to send reset email."
+                                    }
+                                    showAlert = true
+                                }
                             }
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(Color.quartierBlue)
@@ -146,6 +162,11 @@ struct TenantLogin: View {
                         .padding(.bottom, 20)
                     }
                 }
+                .alert("Password Reset", isPresented: $showAlert) {
+                                Button("OK", role: .cancel) { }
+                            } message: {
+                                Text(alertMessage)
+                            }
             }
         }
     }
