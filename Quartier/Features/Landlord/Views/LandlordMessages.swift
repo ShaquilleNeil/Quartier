@@ -4,6 +4,8 @@
 //
 import SwiftUI
 import FirebaseAuth
+import FirebaseFirestore
+import SDWebImageSwiftUI
 
 struct LandlordMessages: View {
     @StateObject private var viewModel = ChatViewModel()
@@ -32,7 +34,16 @@ struct LandlordMessages: View {
                     List {
                         ForEach(viewModel.conversations) { conv in
                             NavigationLink(destination: LandlordChatView(conversation: conv)) {
-                                ConversationRow(conversation: conv, primary: primary)
+                                ConversationRow(conversation: conv, primary: primary, isLandlord: true)
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    if let id = conv.id {
+                                        viewModel.deleteConversation(conversationId: id)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
                         }
                     }
@@ -43,9 +54,31 @@ struct LandlordMessages: View {
             .navigationTitle("Messages")
             .onAppear {
                 viewModel.loadConversations(isLandlord: true)
+                fetchTenantProfiles()
+            }
+            .onChange(of: viewModel.conversations) { _, _ in
+                fetchTenantProfiles()
             }
             .onDisappear {
                 viewModel.cleanupConversations()
+            }
+        }
+    }
+    
+    private func fetchTenantProfiles() {
+        for i in viewModel.conversations.indices {
+            let conv = viewModel.conversations[i]
+            guard conv.tenantPhoto == nil, !conv.tenantId.isEmpty else { continue }
+            
+            Task {
+                let snapshot = try? await Firestore.firestore()
+                    .collection("users")
+                    .document(conv.tenantId)
+                    .getDocument()
+                if let data = snapshot?.data(),
+                   let idx = viewModel.conversations.firstIndex(where: { $0.id == conv.id }) {
+                    viewModel.conversations[idx].tenantPhoto = data["profilePic"] as? String
+                }
             }
         }
     }
@@ -55,6 +88,8 @@ struct LandlordChatView: View {
     let conversation: Conversation
     @StateObject private var viewModel = ChatViewModel()
     @State private var messageText = ""
+    @State private var tenantPhoto: String? = nil
+    @State private var tenantName: String? = nil
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
     private let currentUid = Auth.auth().currentUser?.uid ?? ""
     
@@ -84,26 +119,53 @@ struct LandlordChatView: View {
                 inputBar
             }
         }
-        
-        .navigationTitle(conversation.listingAddress.isEmpty ? "Tenant" : conversation.listingAddress)
+        .navigationTitle(conversation.tenantName.isEmpty ? "Tenant" : conversation.tenantName)
         .navigationBarTitleDisplayMode(.inline)
-        
         .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink(destination: TenantProfilePublicView(tenantId: conversation.tenantId)) {
-                            HStack(spacing: 4) {
-                                Text("Profile")
-                                    .font(.subheadline.bold())
-                                Image(systemName: "person.crop.circle")
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink(destination: TenantProfilePublicView(tenantId: conversation.tenantId)) {
+                    HStack(spacing: 8) {
+                        if let name = tenantName {
+                            Text(name)
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.primary)
+                        }
+                        
+                        if let photoURL = tenantPhoto, let url = URL(string: photoURL) {
+                            WebImage(url: url) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                Circle()
+                                    .fill(primary.opacity(0.12))
+                                    .overlay(Image(systemName: "person.fill").foregroundStyle(primary))
                             }
+                            .frame(width: 34, height: 34)
+                            .clipShape(Circle())
+                        } else {
+                            Circle()
+                                .fill(primary.opacity(0.12))
+                                .frame(width: 34, height: 34)
+                                .overlay(Image(systemName: "person.fill").foregroundStyle(primary))
                         }
                     }
                 }
-        
+            }
+        }
         .onAppear {
             if let id = conversation.id {
                 viewModel.loadMessages(conversationId: id)
                 viewModel.markAsRead(conversationId: id, isLandlord: true)
+            }
+            Task {
+                let snapshot = try? await Firestore.firestore()
+                    .collection("users")
+                    .document(conversation.tenantId)
+                    .getDocument()
+                if let data = snapshot?.data() {
+                    tenantPhoto = data["profilePic"] as? String
+                    let email = data["email"] as? String ?? ""
+                    tenantName = data["name"] as? String ?? email.components(separatedBy: "@").first
+                }
             }
         }
         .onDisappear {
@@ -138,8 +200,6 @@ struct LandlordChatView: View {
         VStack(spacing: 0) {
             Divider().opacity(0.2)
             HStack(alignment: .bottom, spacing: 10) {
-                
-                // FIXED: Changed TextEditor to an expanding TextField
                 TextField("Type a message...", text: $messageText, axis: .vertical)
                     .font(.system(size: 14))
                     .lineLimit(1...5)
@@ -180,3 +240,4 @@ struct LandlordChatView: View {
         }
     }
 }
+

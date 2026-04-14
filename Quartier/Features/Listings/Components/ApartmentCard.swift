@@ -11,6 +11,8 @@ import SDWebImageSwiftUI
 struct ApartmentCard: View {
     let listing: Listing
     @EnvironmentObject private var firebase: FirebaseManager
+    @EnvironmentObject var coreDataManager: CoreDataManager
+    @Environment(\.managedObjectContext) private var context
 //    var address: String
     
     var isFavorite: Bool {
@@ -45,7 +47,15 @@ struct ApartmentCard: View {
                     HStack {
                         Spacer()
                         Button(action: {
-                            firebase.saveFavorite(listingId: listing.id.uuidString)
+                            let isFav = firebase.favoriteIds.contains(listing.id.uuidString) // before toggle
+                               
+                               firebase.saveFavorite(listingId: listing.id.uuidString)
+                               
+                               if isFav {
+                                   coreDataManager.deleteFavorite(id: listing.listingID, context: context)
+                               } else {
+                                   coreDataManager.saveFavorite(from: listing, context: context)
+                               }
                         }) {
                             Image(systemName: isFavorite ? "heart.fill" : "heart")
                                 .foregroundColor(isFavorite ? .red : .white)

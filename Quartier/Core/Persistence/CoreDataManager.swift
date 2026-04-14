@@ -246,6 +246,51 @@ class CoreDataManager: ObservableObject {
         }
     }
     
+    // MARK: - Favorites
+
+    func saveFavorite(from listing: Listing, context: NSManagedObjectContext) {
+        // Avoid duplicates
+        guard fetchFavorite(id: listing.listingID, context: context) == nil else { return }
+
+        let entity = TFavoriteListing(context: context)
+        entity.id = listing.listingID
+        entity.listingName = listing.listingName
+        entity.address = listing.address
+        entity.price = listing.price
+        entity.bedrooms = Int16(listing.bedrooms)
+        entity.bathrooms = Int16(listing.bathrooms)
+        entity.imageURLs = listing.existingImageURLs as NSObject
+        entity.latitude = listing.latitude ?? 0
+        entity.longitude = listing.longitude ?? 0
+        entity.isRented = listing.isRented
+        entity.landlordId = listing.landLordId ?? ""
+        entity.savedAt = Date()
+
+        saveContext(context)
+        print("Saved favorite: \(listing.listingName)")
+        let check = loadFavorites(context: context)
+        print("Favorites in Core Data: \(check.map { $0.listingName })")
+    }
+
+    func deleteFavorite(id: UUID, context: NSManagedObjectContext) {
+        guard let item = fetchFavorite(id: id, context: context) else { return }
+        context.delete(item)
+        saveContext(context)
+    }
+
+    func fetchFavorite(id: UUID, context: NSManagedObjectContext) -> TFavoriteListing? {
+        let request: NSFetchRequest<TFavoriteListing> = TFavoriteListing.fetchRequest()
+        request.fetchLimit = 1
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        return try? context.fetch(request).first
+    }
+
+    func loadFavorites(context: NSManagedObjectContext) -> [TFavoriteListing] {
+        let request: NSFetchRequest<TFavoriteListing> = TFavoriteListing.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(key: "savedAt", ascending: false)]
+        return (try? context.fetch(request)) ?? []
+    }
+    
     // MARK: - Context Helpers
     
     private func saveContext(_ context: NSManagedObjectContext) {
@@ -254,5 +299,28 @@ class CoreDataManager: ObservableObject {
         } catch {
             fatalError("Core Data save failed: \(error)")
         }
+    }
+    
+    
+    
+}
+
+
+extension TFavoriteListing {
+    func toListing() -> Listing {
+        var listing = Listing(
+            listingID: self.id ?? UUID(),
+            listingName: self.listingName ?? "",
+            landLordId: self.landlordId ?? "",
+            price: self.price,
+            bedrooms: Int(self.bedrooms),
+            bathrooms: Int(self.bathrooms),
+            address: self.address ?? ""
+        )
+        listing.existingImageURLs = self.imageURLs as? [String] ?? []
+        listing.latitude = self.latitude
+        listing.longitude = self.longitude
+        listing.isRented = self.isRented
+        return listing
     }
 }

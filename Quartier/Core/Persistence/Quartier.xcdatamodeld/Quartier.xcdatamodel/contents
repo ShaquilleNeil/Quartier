@@ -89,6 +89,20 @@
         <relationship name="conversations" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="LDConversation" inverseName="tenant" inverseEntity="LDConversation"/>
         <relationship name="tenancies" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="LDTenancy" inverseName="tenant" inverseEntity="LDTenancy"/>
     </entity>
+    <entity name="TFavoriteListing" representedClassName="TFavoriteListing" syncable="YES" codeGenerationType="class">
+        <attribute name="address" optional="YES" attributeType="String"/>
+        <attribute name="bathrooms" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="bedrooms" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="imageURLs" optional="YES" attributeType="Transformable"/>
+        <attribute name="isRented" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="landlordId" optional="YES" attributeType="String"/>
+        <attribute name="latitude" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="listingName" optional="YES" attributeType="String"/>
+        <attribute name="longitude" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="price" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="savedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+    </entity>
     <entity name="TPreferences" representedClassName="TPreferences" syncable="YES" codeGenerationType="class">
         <attribute name="budgetMax" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
         <attribute name="budgetMin" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>

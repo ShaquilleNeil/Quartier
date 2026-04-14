@@ -11,6 +11,9 @@ struct Conversation: Identifiable, Codable, Hashable {
     var tenantId: String
     var landlordId: String
     var tenantName: String
+    var landlordName: String?
+    var landlordPhoto: String?
+    var tenantPhoto: String?
     var lastMessageText: String
     var lastMessageAt: Date
     var landlordUnreadCount: Int?
@@ -125,5 +128,9 @@ class ChatViewModel: ObservableObject {
     
     func cleanupConversations() {
         convosListener?.remove()
+    }
+    
+    func deleteConversation(conversationId: String) {
+        db.collection("conversations").document(conversationId).delete()
     }
 }

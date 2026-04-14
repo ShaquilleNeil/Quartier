@@ -4,9 +4,11 @@
 //
 import SwiftUI
 import FirebaseAuth
+import SDWebImageSwiftUI
 
 struct TenantMessages: View {
     @StateObject private var viewModel = ChatViewModel()
+    @EnvironmentObject var firebase: FirebaseManager
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
     
     var body: some View {
@@ -34,6 +36,15 @@ struct TenantMessages: View {
                             NavigationLink(destination: TenantChatView(conversation: conv)) {
                                 ConversationRow(conversation: conv, primary: primary)
                             }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    if let id = conv.id {
+                                        viewModel.deleteConversation(conversationId: id)
+                                    }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                     .listStyle(.plain)
@@ -43,9 +54,28 @@ struct TenantMessages: View {
             .navigationTitle("Messages")
             .onAppear {
                 viewModel.loadConversations(isLandlord: false)
+                fetchLandlordProfiles()
             }
             .onDisappear {
                 viewModel.cleanupConversations()
+            }
+            .onChange(of: viewModel.conversations) { _, _ in
+                fetchLandlordProfiles()
+            }
+        }
+    }
+    
+    private func fetchLandlordProfiles() {
+        for i in viewModel.conversations.indices {
+            let conv = viewModel.conversations[i]
+            guard conv.landlordName == nil, !conv.landlordId.isEmpty else { continue }
+            
+            Task {
+                let profile = await firebase.fetchLandlordProfile(uid: conv.landlordId)
+                if let idx = viewModel.conversations.firstIndex(where: { $0.id == conv.id }) {
+                    viewModel.conversations[idx].landlordName = profile.name
+                    viewModel.conversations[idx].landlordPhoto = profile.photoURL
+                }
             }
         }
     }
@@ -57,6 +87,9 @@ struct TenantChatView: View {
     @State private var messageText = ""
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
     private let currentUid = Auth.auth().currentUser?.uid ?? ""
+    @State private var landlordPhoto: String? = nil
+       @State private var landlordName: String? = nil
+    @EnvironmentObject var firebase: FirebaseManager 
     
     var body: some View {
         ZStack {
@@ -84,13 +117,57 @@ struct TenantChatView: View {
                 inputBar
             }
         }
-        .navigationTitle(conversation.listingAddress.isEmpty ? "Chat" : conversation.listingAddress)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink(destination: LandlordProfile(
+                    landlordId: conversation.landlordId,
+                    publicView: true
+                )) {
+                    HStack(spacing: 8) {
+                        if let name = landlordName {
+                            Text(name)
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.primary)
+                        }
+                        
+                        if let photoURL = landlordPhoto, let url = URL(string: photoURL) {
+                            WebImage(url: url) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                Circle()
+                                    .fill(Color.blue.opacity(0.12))
+                                    .overlay(Image(systemName: "person.fill").foregroundStyle(.blue))
+                            }
+                            .frame(width: 34, height: 34)
+                            .clipShape(Circle())
+                        } else {
+                            Circle()
+                                .fill(Color.blue.opacity(0.12))
+                                .frame(width: 34, height: 34)
+                                .overlay(Image(systemName: "person.fill").foregroundStyle(.blue))
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle({
+            if let name = conversation.landlordName, !name.isEmpty {
+                return "\(name) · \(conversation.listingAddress)"
+            }
+            return conversation.listingAddress.isEmpty ? "Chat" : conversation.listingAddress
+        }())
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if let id = conversation.id {
                 viewModel.loadMessages(conversationId: id)
                 viewModel.markAsRead(conversationId: id, isLandlord: false)
             }
+            
+            Task {
+                   let profile = await firebase.fetchLandlordProfile(uid: conversation.landlordId)
+                   landlordPhoto = profile.photoURL
+                   landlordName = profile.name
+               }
         }
         .onDisappear {
             viewModel.cleanupMessages()
@@ -169,16 +246,47 @@ struct TenantChatView: View {
 struct ConversationRow: View {
     let conversation: Conversation
     let primary: Color
+    var isLandlord: Bool = false
     
     var body: some View {
         HStack(spacing: 12) {
-            Circle()
-                .fill(primary.opacity(0.12))
+            let photoURL = isLandlord ? conversation.tenantPhoto : conversation.landlordPhoto
+            
+            if let photoURL, let url = URL(string: photoURL) {
+                WebImage(url: url) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Circle().fill(primary.opacity(0.12))
+                        .overlay(Image(systemName: "person.fill").foregroundStyle(primary))
+                }
                 .frame(width: 48, height: 48)
-                .overlay(Image(systemName: "person.fill").foregroundStyle(primary))
+                .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(primary.opacity(0.12))
+                    .frame(width: 48, height: 48)
+                    .overlay(Image(systemName: "person.fill").foregroundStyle(primary))
+            }
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(conversation.listingAddress.isEmpty ? "Listing" : conversation.listingAddress)
+                let title: String = {
+                    if isLandlord {
+                        // Landlord sees: "Tenant Name · Listing Address"
+                        let name = conversation.tenantName.isEmpty ? nil : conversation.tenantName
+                        if let name {
+                            return "\(name) · \(conversation.listingAddress)"
+                        }
+                        return conversation.listingAddress.isEmpty ? "Listing" : conversation.listingAddress
+                    } else {
+                        // Tenant sees: "Landlord Name · Listing Address"
+                        if let name = conversation.landlordName, !name.isEmpty {
+                            return "\(name) · \(conversation.listingAddress)"
+                        }
+                        return conversation.listingAddress.isEmpty ? "Listing" : conversation.listingAddress
+                    }
+                }()
+                
+                Text(title)
                     .font(.system(size: 16, weight: .semibold))
                     .lineLimit(1)
                 Text(conversation.lastMessageText)
@@ -197,13 +305,9 @@ struct ConversationRow: View {
     private func relativeTime(_ date: Date) -> String {
         let cal = Calendar.current
         if cal.isDateInToday(date) {
-            let f = DateFormatter()
-            f.timeStyle = .short
-            return f.string(from: date)
+            let f = DateFormatter(); f.timeStyle = .short; return f.string(from: date)
         }
         if cal.isDateInYesterday(date) { return "Yesterday" }
-        let f = DateFormatter()
-        f.dateStyle = .short
-        return f.string(from: date)
+        let f = DateFormatter(); f.dateStyle = .short; return f.string(from: date)
     }
 }

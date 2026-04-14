@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseAuth
+import FirebaseFirestore
 
 struct LandlordMessages: View {
     @StateObject private var viewModel = ChatViewModel()
@@ -50,7 +51,10 @@ struct LandlordMessages: View {
 struct LandlordChatView: View {
     let conversation: Conversation
     @StateObject private var viewModel = ChatViewModel()
+    @EnvironmentObject var firebase: FirebaseManager
     @State private var messageText = ""
+    @State private var tenantPhoto: String? = nil
+    @State private var tenantName: String? = nil
     private let primary = Color(red: 0.17, green: 0.55, blue: 0.93)
     private let currentUid = Auth.auth().currentUser?.uid ?? ""
     
@@ -83,16 +87,50 @@ struct LandlordChatView: View {
         .navigationTitle(conversation.tenantName.isEmpty ? "Tenant" : conversation.tenantName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        NavigationLink(destination: TenantProfilePublicView(tenantId: conversation.tenantId)) {
-                            HStack(spacing: 4) {
-                                Text("Profile")
-                                    .font(.subheadline.bold())
-                                Image(systemName: "person.crop.circle")
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink(destination: TenantProfilePublicView(tenantId: conversation.tenantId)) {
+                    HStack(spacing: 8) {
+                        if let name = tenantName {
+                            Text(name)
+                                .font(.subheadline.bold())
+                                .foregroundStyle(.primary)
+                        }
+                        
+                        if let photoURL = tenantPhoto, let url = URL(string: photoURL) {
+                            WebImage(url: url) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                Circle()
+                                    .fill(primary.opacity(0.12))
+                                    .overlay(Image(systemName: "person.fill").foregroundStyle(primary))
                             }
+                            .frame(width: 34, height: 34)
+                            .clipShape(Circle())
+                        } else {
+                            Circle()
+                                .fill(primary.opacity(0.12))
+                                .frame(width: 34, height: 34)
+                                .overlay(Image(systemName: "person.fill").foregroundStyle(primary))
+                        }
+                    }
+                }
+            }
+        }
         .onAppear {
             if let id = conversation.id {
                 viewModel.loadMessages(conversationId: id)
+                viewModel.markAsRead(conversationId: id, isLandlord: true)
+            }
+            Task {
+                let snapshot = try? await Firestore.firestore()
+                    .collection("users")
+                    .document(conversation.tenantId)
+                    .getDocument()
+                if let data = snapshot?.data() {
+                    tenantPhoto = data["profilePic"] as? String
+                    let email = data["email"] as? String ?? ""
+                    tenantName = data["name"] as? String ?? email.components(separatedBy: "@").first
+                }
             }
         }
         .onDisappear {

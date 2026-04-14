@@ -9,6 +9,7 @@ import FirebaseFirestore
 import FirebaseStorage
 import FirebaseAuth
 import Combine
+import CoreData
 
 class FirebaseManager: ObservableObject {
     
@@ -621,10 +622,16 @@ class FirebaseManager: ObservableObject {
         ref.getDocument { snapshot, _ in
             if snapshot?.exists == true {
                 ref.delete()
+                DispatchQueue.main.async {
+                    self.favoriteIds.remove(listingId)
+                    self.savedListings.removeAll { $0.id.uuidString == listingId }
+                }
             } else {
                 ref.setData(["listingId": listingId, "createdAt": FieldValue.serverTimestamp()])
+                DispatchQueue.main.async {
+                    self.favoriteIds.insert(listingId)
+                }
             }
-            self.fetchUserFavorites()
         }
     }
     
