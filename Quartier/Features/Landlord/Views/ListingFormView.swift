@@ -140,9 +140,9 @@ struct ListingFormView: View {
         }
 
         //commented for testing without lease
-//        if selectedTenant != nil && attachedLeaseFileName == nil {
-//            errors["lease"] = "A lease must be attached when a tenant is assigned"
-//        }
+        if selectedTenant != nil && attachedLeaseFileName == nil {
+            errors["lease"] = "A lease must be attached when a tenant is assigned"
+        }
 
         fieldErrors = errors
         return errors.isEmpty

@@ -36,10 +36,12 @@ struct ApartmentDetailView: View {
            }
            .ignoresSafeArea(edges: .top)
            .task {
-                   let profile = await firebase.fetchLandlordProfile(uid: listing.landLordId)
-                   landlordName = profile.name
-                   landlordPhotoURL = profile.photoURL
-               }
+               print("Fetching landlord for uid:", listing.landLordId)
+               let profile = await firebase.fetchLandlordProfile(uid: listing.landLordId)
+               print("Landlord result:", profile)
+               landlordName = profile.name
+               landlordPhotoURL = profile.photoURL
+           }
            .sheet(item: $activeConversation) { conv in
                 let firebaseConv = Conversation(
                     id: conv.id?.uuidString ?? UUID().uuidString,

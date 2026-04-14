@@ -640,11 +640,24 @@ class FirebaseManager: ObservableObject {
     }
     
     func fetchLandlordProfile(uid: String) async -> (name: String?, photoURL: String?) {
-        let snapshot = try? await db.collection("users").document(uid).getDocument()
-        let data = snapshot?.data()
-        let name = data?["name"] as? String ?? data?["email"] as? String
-        let photo = data?["profilePic"] as? String
-        return (name, photo)
+        guard !uid.isEmpty else {
+            print("fetchLandlordProfile: empty uid")
+            return (nil, nil)
+        }
+        
+        do {
+            let snapshot = try await db.collection("users").document(uid).getDocument()
+            guard snapshot.exists, let data = snapshot.data() else {
+                print("fetchLandlordProfile: document not found for uid \(uid)")
+                return (nil, nil)
+            }
+            let name = data["name"] as? String ?? data["email"] as? String
+            let photo = data["profilePic"] as? String
+            return (name, photo)
+        } catch {
+            print("fetchLandlordProfile error:", error.localizedDescription)
+            return (nil, nil)
+        }
     }
     
     // MARK: - Preferences
